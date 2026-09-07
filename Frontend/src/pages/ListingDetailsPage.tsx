@@ -4,12 +4,13 @@
   OWNER: Aidan Barends (230255639)
   ROUTE: /listings/:listingId
 
-  TODO
-   - "Message seller" should create/find a conversation - talk to whoever takes
-     messaging so you agree on that flow rather than both building half of it
-
   NOTE: images come back with `primary`, not `isPrimary` - see the comment at the
   top of src/lib/api/types.ts for why.
+
+  "Message seller" hands off to /messages rather than creating a conversation -
+  messages.ts is unowned, so wiring a real conversation-creation flow here
+  would risk duplicating whoever picks up messaging. Revisit once that's
+  assigned and the flow is agreed.
 
   Your own components go in src/components/listings/.
 */
@@ -262,7 +263,14 @@ export function ListingDetailsPage() {
             </dl>
           </div>
 
-          <SellerCard seller={seller} loading={sellerLoading} rating={rating} reviewCount={reviewCount} />
+          <SellerCard
+            seller={seller}
+            loading={sellerLoading}
+            rating={rating}
+            reviewCount={reviewCount}
+            showMessageAction={!isOwner}
+            onMessage={() => navigate('/messages')}
+          />
 
           {isOwner && (
             <ListingOwnerActions listing={listing} onMarkSold={handleMarkSold} onDelete={handleDelete} />

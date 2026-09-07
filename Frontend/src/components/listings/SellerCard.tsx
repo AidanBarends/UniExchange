@@ -1,10 +1,14 @@
 /*
-  Who is selling this.
+  Who is selling this, and a way to reach them.
 
   Rating comes from usersApi.averageRating(), which returns 0 for a seller
   with no reviews yet (ReviewServiceImpl.averageRatingForUser defaults an
   empty stream to 0.0) - that's shown as "No ratings yet" rather than "0.0
   stars", since a bare 0 reads as a bad rating rather than an absent one.
+
+  "Message seller" does not create a conversation - messages.ts is unowned,
+  and building that flow solo risks duplicating whoever picks up messaging.
+  The button just hands off to /messages for now.
 
   Owner: Aidan Barends (230255639), for /listings/:listingId only.
 */
@@ -12,6 +16,7 @@
 import { Link } from 'react-router-dom'
 
 import { Avatar } from '@/components/ui/Avatar'
+import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import type { User } from '@/lib/api/types'
 
@@ -21,9 +26,19 @@ type SellerCardProps = {
   /** Number of reviews backing `rating`, so 0 reviews reads differently from a genuine 0.0 average. */
   reviewCount: number | null
   rating: number | null
+  /** Hidden entirely when the viewer is the seller - you don't message yourself. */
+  showMessageAction: boolean
+  onMessage: () => void
 }
 
-export function SellerCard({ seller, loading, reviewCount, rating }: SellerCardProps) {
+export function SellerCard({
+  seller,
+  loading,
+  reviewCount,
+  rating,
+  showMessageAction,
+  onMessage,
+}: SellerCardProps) {
   const fullName = seller ? `${seller.firstName} ${seller.lastName}` : null
 
   return (
@@ -55,6 +70,12 @@ export function SellerCard({ seller, loading, reviewCount, rating }: SellerCardP
             </p>
           </div>
         </div>
+      )}
+
+      {showMessageAction && (
+        <Button variant="ghost" className="mt-4" onClick={onMessage}>
+          Message seller
+        </Button>
       )}
     </div>
   )
