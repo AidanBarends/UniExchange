@@ -52,6 +52,9 @@ export const listingsApi = {
 
   categories: () => request<Category[]>('/api/categories'),
 
+  /** Single category. Public. Backed by GET /api/categories/:id on CategoryController. */
+  categoryById: (categoryId: number | string) => request<Category>(`/api/categories/${categoryId}`),
+
   imagesFor: (listingId: number | string) =>
     request<ListingImage[]>(`/api/listing-images/listing/${listingId}`),
 
