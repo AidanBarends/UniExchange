@@ -7,7 +7,6 @@
   TODO
    - "Message seller" should create/find a conversation - talk to whoever takes
      messaging so you agree on that flow rather than both building half of it
-   - owner-only actions (mark sold / delete)
 
   NOTE: images come back with `primary`, not `isPrimary` - see the comment at the
   top of src/lib/api/types.ts for why.
@@ -16,11 +15,14 @@
 */
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
-import { PageHeader } from '../components/layout/PageHeader'
+import { useAuth } from '@/auth/useAuth'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { ListingGallery } from '@/components/listings/ListingGallery'
+import { ListingOwnerActions } from '@/components/listings/ListingOwnerActions'
 import { SellerCard } from '@/components/listings/SellerCard'
+import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -30,8 +32,8 @@ import { listingsApi } from '@/lib/api/listings'
 import type { Campus, Category, Listing, ListingImage, ListingStatus, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 
-// PIECE 4: seller card - name, avatar, rating. SellerCard.tsx is the second
-// new file this page owns.
+// PIECE 5: owner-only actions (mark as sold / delete). Third and last new
+// component file for this page - ListingOwnerActions.tsx.
 
 const currencyFormatter = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' })
 const dateFormatter = new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium' })
@@ -51,6 +53,8 @@ type LoadState =
 
 export function ListingDetailsPage() {
   const { listingId } = useParams<{ listingId: string }>()
+  const navigate = useNavigate()
+  const { user } = useAuth()
 
   const numericId = listingId !== undefined && /^\d+$/.test(listingId) ? Number(listingId) : null
 
@@ -58,18 +62,18 @@ export function ListingDetailsPage() {
   const [category, setCategory] = useState<Category | null>(null)
   const [campus, setCampus] = useState<Campus | null>(null)
   const [images, setImages] = useState<ListingImage[]>([])
-
-  // Piece 4: seller reputation. usersApi.averageRating returns 0.0 for no
-  // reviews (not an error), so it's fetched separately from the review COUNT
-  // - SellerCard needs both to tell "no reviews yet" apart from "genuinely
-  // rated 0".
   const [seller, setSeller] = useState<User | null>(null)
   const [sellerLoading, setSellerLoading] = useState(true)
   const [rating, setRating] = useState<number | null>(null)
   const [reviewCount, setReviewCount] = useState<number | null>(null)
 
+  // Piece 5: surfaces errors from mark-sold / delete, which happen after the
+  // page is already 'ready' so they can't just set the LoadState to 'error'.
+  const [actionError, setActionError] = useState<string | null>(null)
+
   const load = useCallback(async (id: number) => {
     setState({ status: 'loading' })
+    setActionError(null)
 
     let listing: Listing
     try {
@@ -88,9 +92,6 @@ export function ListingDetailsPage() {
 
     setState({ status: 'ready', listing })
 
-    // Everything below is supporting detail - if one of these fails, the
-    // page still shows the listing itself rather than falling back to an
-    // error, it just shows that one field blank.
     void listingsApi
       .categoryById(listing.categoryId)
       .then(setCategory)
@@ -184,12 +185,54 @@ export function ListingDetailsPage() {
 
   const { listing } = state
 
+  // Belt-and-suspenders: the buttons that call these are only rendered for
+  // isOwner already, but that's a UI decision, not enforcement - the backend
+  // currently accepts PATCH .../sold and DELETE from ANY authenticated user,
+  // not just the seller (ListingController/ListingServiceImpl do not check
+  // sellerId against the caller). Refusing here client-side closes nothing on
+  // its own - anyone can still call the API directly - but it stops this
+  // page from being the thing that fires an unauthorized request. The real
+  // fix has to be a server-side ownership check.
+  const isOwner = user?.userId === listing.sellerId
+
+  const handleMarkSold = async () => {
+    if (!isOwner) {
+      setActionError('Only the seller can mark this listing as sold.')
+      return
+    }
+    try {
+      const updated = await listingsApi.markSold(listing.listingId)
+      setState({ status: 'ready', listing: updated })
+    } catch (error) {
+      setActionError(error instanceof ApiError ? error.message : 'Could not mark this as sold.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!isOwner) {
+      setActionError('Only the seller can delete this listing.')
+      return
+    }
+    try {
+      await listingsApi.remove(listing.listingId)
+      navigate('/feed')
+    } catch (error) {
+      setActionError(error instanceof ApiError ? error.message : 'Could not delete this listing.')
+    }
+  }
+
   return (
     <>
       <PageHeader
         title={listing.title}
         subtitle={category ? category.name : `Listing #${listing.listingId}`}
       />
+
+      {actionError && (
+        <div className="mb-4">
+          <Alert>{actionError}</Alert>
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-5">
         <div className="md:col-span-3">
@@ -220,6 +263,10 @@ export function ListingDetailsPage() {
           </div>
 
           <SellerCard seller={seller} loading={sellerLoading} rating={rating} reviewCount={reviewCount} />
+
+          {isOwner && (
+            <ListingOwnerActions listing={listing} onMarkSold={handleMarkSold} onDelete={handleDelete} />
+          )}
         </div>
       </div>
 
