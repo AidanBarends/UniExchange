@@ -25,6 +25,7 @@ import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { ListingGallery } from '@/components/listings/ListingGallery'
 import { ListingOwnerActions } from '@/components/listings/ListingOwnerActions'
+import { RelatedListings } from '@/components/listings/RelatedListings'
 import { SellerCard } from '@/components/listings/SellerCard'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
@@ -354,6 +355,12 @@ export function ListingDetailsPage() {
           </div>
         </Card>
       )}
+
+      <RelatedListings
+        currentListingId={listing.listingId}
+        categoryId={listing.categoryId}
+        campusId={listing.campusId}
+      />
     </>
   )
 }
