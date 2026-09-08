@@ -4,13 +4,16 @@
   OWNER: Aidan Barends (230255639)
   ROUTE: /listings/:listingId
 
+  Restyled to match the team's Product Details mockup. A few things in that
+  mockup don't have backend support and are deliberately left out rather than
+  faked - see the comments in SellerCard.tsx and ListingGallery.tsx for the
+  specifics (condition badge, discounted price, favorites, seller
+  online-status, a real map). The "Location" section here is a text card
+  (campus name + city), not a map with a pin, since Campus has no
+  coordinates.
+
   NOTE: images come back with `primary`, not `isPrimary` - see the comment at the
   top of src/lib/api/types.ts for why.
-
-  "Message seller" hands off to /messages rather than creating a conversation -
-  messages.ts is unowned, so wiring a real conversation-creation flow here
-  would risk duplicating whoever picks up messaging. Revisit once that's
-  assigned and the flow is agreed.
 
   Your own components go in src/components/listings/.
 */
@@ -26,15 +29,16 @@ import { SellerCard } from '@/components/listings/SellerCard'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
-import { ApiError } from '@/lib/api/client'
+import { ApiError, authedRequest } from '@/lib/api/client'
 import { listingsApi } from '@/lib/api/listings'
 import type { Campus, Category, Listing, ListingImage, ListingStatus, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 
 const currencyFormatter = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' })
-const dateFormatter = new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium' })
+const absoluteDateFormatter = new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium' })
 
 const STATUS_TONE: Record<ListingStatus, 'success' | 'neutral' | 'warning' | 'danger'> = {
   ACTIVE: 'success',
@@ -42,6 +46,32 @@ const STATUS_TONE: Record<ListingStatus, 'success' | 'neutral' | 'warning' | 'da
   REMOVED: 'warning',
   DELETED: 'danger',
 }
+
+/** "Listed 2 hours ago" - matches the mockup's relative-time style. Falls back
+ * to an absolute date once something is more than a week old, since "47 days
+ * ago" is less useful than just reading the date at that point. */
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffMin = Math.floor(diffMs / 60_000)
+
+  if (diffMin < 1) return 'Just now'
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
+
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`
+
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
+
+  return absoluteDateFormatter.format(new Date(iso))
+}
+
+// Not exposed by usersApi.ts (users.ts is Raul's file, not touched here) -
+// just the one field this page actually needs from a real endpoint:
+// GET /api/trusted-seller-badges/user/:id, 404 when the seller has none.
+// findByUserId on the backend does NOT filter out revoked badges, so
+// revokedAt has to be checked here rather than trusting a 200 alone.
+type TrustedSellerBadgeResponse = { revokedAt: string | null }
 
 type LoadState =
   | { status: 'loading' }
@@ -64,19 +94,15 @@ export function ListingDetailsPage() {
   const [sellerLoading, setSellerLoading] = useState(true)
   const [rating, setRating] = useState<number | null>(null)
   const [reviewCount, setReviewCount] = useState<number | null>(null)
-
-  // Piece 5: surfaces errors from mark-sold / delete, which happen after the
-  // page is already 'ready' so they can't just set the LoadState to 'error'.
+  const [trusted, setTrusted] = useState<boolean | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const load = useCallback(async (id: number) => {
     setState({ status: 'loading' })
     setActionError(null)
 
-    // Reset supporting detail from any previously-loaded listing. Without
-    // this, navigating from one listing straight to another (same page
-    // instance, just a new :listingId) would flash the OLD listing's seller,
-    // images, category and campus while the new ones are still in flight.
+    // Reset supporting detail from any previously-loaded listing so a
+    // direct navigation between two listings never flashes stale data.
     setCategory(null)
     setCampus(null)
     setImages([])
@@ -84,6 +110,7 @@ export function ListingDetailsPage() {
     setSellerLoading(true)
     setRating(null)
     setReviewCount(null)
+    setTrusted(null)
 
     let listing: Listing
     try {
@@ -102,6 +129,9 @@ export function ListingDetailsPage() {
 
     setState({ status: 'ready', listing })
 
+    // Everything below is supporting detail - if one of these fails, the
+    // page still shows the listing itself rather than falling back to an
+    // error, it just shows that one field blank.
     void listingsApi
       .categoryById(listing.categoryId)
       .then(setCategory)
@@ -132,6 +162,10 @@ export function ListingDetailsPage() {
       .reviewsAbout(listing.sellerId)
       .then((reviews) => setReviewCount(reviews.length))
       .catch(() => setReviewCount(null))
+
+    void authedRequest<TrustedSellerBadgeResponse>(`/api/trusted-seller-badges/user/${listing.sellerId}`)
+      .then((badge) => setTrusted(badge.revokedAt === null))
+      .catch(() => setTrusted(false))
   }, [])
 
   useEffect(() => {
@@ -192,6 +226,7 @@ export function ListingDetailsPage() {
   }
 
   const { listing } = state
+  const isOwner = user?.userId === listing.sellerId
 
   // Belt-and-suspenders: the buttons that call these are only rendered for
   // isOwner already, but that's a UI decision, not enforcement - the backend
@@ -201,8 +236,6 @@ export function ListingDetailsPage() {
   // its own - anyone can still call the API directly - but it stops this
   // page from being the thing that fires an unauthorized request. The real
   // fix has to be a server-side ownership check.
-  const isOwner = user?.userId === listing.sellerId
-
   const handleMarkSold = async () => {
     if (!isOwner) {
       setActionError('Only the seller can mark this listing as sold.')
@@ -229,6 +262,22 @@ export function ListingDetailsPage() {
     }
   }
 
+  const handleShare = async (): Promise<'shared' | 'copied' | 'cancelled'> => {
+    const url = window.location.href
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: listing.title, url })
+        return 'shared'
+      } catch {
+        // AbortError when the user just closes the native share sheet - not
+        // an error worth surfacing.
+        return 'cancelled'
+      }
+    }
+    await navigator.clipboard.writeText(url)
+    return 'copied'
+  }
+
   return (
     <>
       <PageHeader
@@ -253,35 +302,29 @@ export function ListingDetailsPage() {
         </div>
 
         <div className="flex flex-col gap-4 md:col-span-2">
-          <div className="rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-2xl font-semibold text-ink-900">
-                {currencyFormatter.format(listing.price)}
-              </p>
+          <Card>
+            <div className="flex flex-wrap items-center gap-2">
+              {category && <Badge tone="brand">{category.name}</Badge>}
               <Badge tone={STATUS_TONE[listing.status]}>{listing.status}</Badge>
             </div>
 
-            <dl className="mt-4 space-y-2 text-sm">
-              {campus && (
-                <div className="flex justify-between gap-4">
-                  <dt className="text-ink-500">Campus</dt>
-                  <dd className="text-right text-ink-700">{campus.name}</dd>
-                </div>
-              )}
-              <div className="flex justify-between gap-4">
-                <dt className="text-ink-500">Posted</dt>
-                <dd className="text-ink-700">{dateFormatter.format(new Date(listing.createdAt))}</dd>
-              </div>
-            </dl>
-          </div>
+            <p className="mt-3 text-2xl font-semibold text-brand-700">
+              {currencyFormatter.format(listing.price)}
+            </p>
+            <p className="mt-1 text-xs text-ink-500">
+              Listed {formatRelativeTime(listing.createdAt)}
+            </p>
+          </Card>
 
           <SellerCard
             seller={seller}
             loading={sellerLoading}
             rating={rating}
             reviewCount={reviewCount}
+            trusted={trusted}
             showMessageAction={!isOwner}
             onMessage={() => navigate('/messages')}
+            onShare={handleShare}
           />
 
           {isOwner && (
@@ -290,14 +333,41 @@ export function ListingDetailsPage() {
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
+      <Card className="mt-6">
         <p className="mb-2 text-sm font-medium text-ink-700">Description</p>
         {listing.description ? (
           <p className="whitespace-pre-wrap text-sm text-ink-700">{listing.description}</p>
         ) : (
           <p className="text-sm text-ink-400 italic">No description provided.</p>
         )}
-      </div>
+      </Card>
+
+      {campus && (
+        <Card className="mt-6">
+          <p className="mb-2 text-sm font-medium text-ink-700">Location</p>
+          <div className="flex items-start gap-2 text-sm text-ink-700">
+            <LocationIcon className="mt-0.5 size-4 shrink-0 text-ink-400" />
+            <div>
+              <p>{campus.name}</p>
+              <p className="text-ink-500">{campus.city}</p>
+            </div>
+          </div>
+        </Card>
+      )}
     </>
+  )
+}
+
+function LocationIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
+      <path
+        d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="9.5" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
   )
 }

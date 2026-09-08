@@ -5,12 +5,20 @@
   backend (findByListingIdOrderByPositionAsc), so this trusts that order and
   only re-picks the one flagged `primary` to open on.
 
+  Matches the team's Product Details mockup: up to VISIBLE_THUMBNAILS shown
+  normally, the rest collapsed behind a "+N" tile that expands the strip when
+  tapped (mockup shows a static "+3" - this makes it functional instead of
+  decorative, since collapsing photos with no way to reach them would be
+  worse than not collapsing at all).
+
   Owner: Aidan Barends (230255639), for /listings/:listingId only.
 */
 
 import { useState } from 'react'
 
 import type { ListingImage } from '@/lib/api/types'
+
+const VISIBLE_THUMBNAILS = 2
 
 type ListingGalleryProps = {
   images: ListingImage[]
@@ -24,6 +32,7 @@ export function ListingGallery({ images, title }: ListingGalleryProps) {
     images.findIndex((image) => image.primary),
   )
   const [activeIndex, setActiveIndex] = useState(primaryIndex)
+  const [expanded, setExpanded] = useState(false)
 
   if (images.length === 0) {
     return (
@@ -37,6 +46,9 @@ export function ListingGallery({ images, title }: ListingGalleryProps) {
   }
 
   const active = images[Math.min(activeIndex, images.length - 1)]
+  const hiddenCount = images.length - VISIBLE_THUMBNAILS
+  const showOverflowTile = !expanded && images.length > VISIBLE_THUMBNAILS + 1
+  const thumbnails = showOverflowTile ? images.slice(0, VISIBLE_THUMBNAILS) : images
 
   return (
     <div>
@@ -53,7 +65,7 @@ export function ListingGallery({ images, title }: ListingGalleryProps) {
 
       {images.length > 1 && (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {images.map((image, index) => (
+          {thumbnails.map((image, index) => (
             <button
               key={image.imageId}
               type="button"
@@ -69,6 +81,17 @@ export function ListingGallery({ images, title }: ListingGalleryProps) {
               <img src={image.imageUrl} alt="" className="size-full object-cover" />
             </button>
           ))}
+
+          {showOverflowTile && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              aria-label={`Show ${hiddenCount} more photos`}
+              className="grid size-16 shrink-0 place-items-center rounded-lg bg-ink-900/80 text-sm font-semibold text-white transition hover:bg-ink-900"
+            >
+              +{hiddenCount}
+            </button>
+          )}
         </div>
       )}
     </div>
