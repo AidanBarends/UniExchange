@@ -33,9 +33,6 @@ import { listingsApi } from '@/lib/api/listings'
 import type { Campus, Category, Listing, ListingImage, ListingStatus, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 
-// PIECE 5: owner-only actions (mark as sold / delete). Third and last new
-// component file for this page - ListingOwnerActions.tsx.
-
 const currencyFormatter = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' })
 const dateFormatter = new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium' })
 
@@ -76,6 +73,18 @@ export function ListingDetailsPage() {
     setState({ status: 'loading' })
     setActionError(null)
 
+    // Reset supporting detail from any previously-loaded listing. Without
+    // this, navigating from one listing straight to another (same page
+    // instance, just a new :listingId) would flash the OLD listing's seller,
+    // images, category and campus while the new ones are still in flight.
+    setCategory(null)
+    setCampus(null)
+    setImages([])
+    setSeller(null)
+    setSellerLoading(true)
+    setRating(null)
+    setReviewCount(null)
+
     let listing: Listing
     try {
       listing = await listingsApi.byId(id)
@@ -107,8 +116,6 @@ export function ListingDetailsPage() {
       .imagesFor(id)
       .then(setImages)
       .catch(() => setImages([]))
-
-    setSellerLoading(true)
 
     void usersApi
       .byId(listing.sellerId)
@@ -227,6 +234,11 @@ export function ListingDetailsPage() {
       <PageHeader
         title={listing.title}
         subtitle={category ? category.name : `Listing #${listing.listingId}`}
+        action={
+          <Button variant="ghost" onClick={() => navigate('/feed')}>
+            Back to feed
+          </Button>
+        }
       />
 
       {actionError && (
