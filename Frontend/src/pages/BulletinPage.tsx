@@ -24,7 +24,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { PostComposer } from '@/components/bulletin/PostComposer'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -35,6 +37,7 @@ import { bulletinApi } from '@/lib/api/bulletin'
 import { ApiError } from '@/lib/api/client'
 import type { BulletinPost, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
+import type { BulletinPostValues } from '@/lib/schemas'
 
 /** Duplicated from ListingDetailsPage.tsx rather than pulled into a shared
  * util - a 12-line date formatter isn't worth introducing a new shared file
@@ -53,12 +56,26 @@ function formatRelativeTime(iso: string): string {
   return absoluteDateFormatter.format(new Date(iso))
 }
 
+/** Faculty announcements pinned to the top, newest first within each group -
+ * matches the scaffold's own TODO note. Shared by the initial load and by
+ * inserting a freshly-created post, so a new (non-announcement) post can
+ * never jump above a pinned announcement just because it's newest. */
+function sortPosts(posts: BulletinPost[]): BulletinPost[] {
+  return [...posts].sort((a, b) => {
+    if (a.facultyAnnouncement !== b.facultyAnnouncement) {
+      return a.facultyAnnouncement ? -1 : 1
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+}
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ready'; posts: BulletinPost[] }
 
 export function BulletinPage() {
+  const { user } = useAuth()
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   // authorId -> User, so posts from the same person only fetch once.
   const [authors, setAuthors] = useState<Map<number, User>>(new Map())
@@ -77,16 +94,7 @@ export function BulletinPage() {
       return
     }
 
-    const published = posts
-      .filter((post) => post.status === 'PUBLISHED')
-      .sort((a, b) => {
-        // Faculty announcements pinned to the top, newest first within
-        // each group - matches the scaffold's own TODO note.
-        if (a.facultyAnnouncement !== b.facultyAnnouncement) {
-          return a.facultyAnnouncement ? -1 : 1
-        }
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      })
+    const published = sortPosts(posts.filter((post) => post.status === 'PUBLISHED'))
 
     setState({ status: 'ready', posts: published })
 
@@ -109,9 +117,33 @@ export function BulletinPage() {
     Promise.resolve().then(() => load())
   }, [load])
 
+  const handleCreatePost = async (values: BulletinPostValues) => {
+    if (!user) return // page is behind ProtectedRoute, but keeps this honest either way
+
+    const created = await bulletinApi.create({
+      authorId: user.userId,
+      title: values.title,
+      content: values.content,
+      status: 'PUBLISHED',
+      isFacultyAnnouncement: false,
+    })
+
+    setState((previous) => ({
+      status: 'ready',
+      posts: sortPosts(previous.status === 'ready' ? [created, ...previous.posts] : [created]),
+    }))
+
+    // Already know who this is - no need to re-fetch your own user record.
+    setAuthors((previous) => new Map(previous).set(user.userId, user))
+  }
+
   return (
     <>
       <PageHeader title="Campus bulletin" subtitle="Announcements and notices" />
+
+      <div className="mb-4">
+        <PostComposer onSubmit={handleCreatePost} />
+      </div>
 
       {state.status === 'loading' && (
         <div className="grid place-items-center py-16">

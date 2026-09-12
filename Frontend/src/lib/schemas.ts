@@ -71,6 +71,18 @@ export const otpSchema = z.object({
     .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
+// BulletinPostFactory throws a plain IllegalArgumentException for a blank
+// title/content, which GlobalExceptionHandler turns into ONE message with no
+// per-field `fields` map (that only exists for @Valid bean-validation
+// errors, and BulletinPostRequest is a plain record with none). So this
+// schema is the only thing actually preventing a blank post - there's no
+// backend field-level error to fall back on and map onto an input.
+export const bulletinPostSchema = z.object({
+  title: z.string().trim().min(1, 'Enter a title').max(150, 'Keep it under 150 characters'),
+  content: z.string().trim().min(1, "Enter what's happening"),
+})
+
 export type SignUpValues = z.infer<typeof signUpSchema>
 export type LoginValues = z.infer<typeof loginSchema>
 export type OtpValues = z.infer<typeof otpSchema>
+export type BulletinPostValues = z.infer<typeof bulletinPostSchema>

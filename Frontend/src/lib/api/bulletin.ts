@@ -1,5 +1,7 @@
 /*
-  Campus bulletin board. OWNER: unassigned
+  Campus bulletin board.
+
+  OWNER: Aidan Barends (230255639) - previously unassigned.
 
   GET is public. Reminder: you send `isFacultyAnnouncement` but read back
   `facultyAnnouncement`.
