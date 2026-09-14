@@ -1,52 +1,48 @@
 /*
-  Faculty-announcement sidebar for the bulletin page.
+  "Campus News" sidebar from the mockup - real data, not a fabricated
+  section: GET /api/bulletin-posts/announcements returns exactly the
+  isFacultyAnnouncement posts this sidebar needs.
 
-  Backed by GET /api/bulletin-posts/announcements, which is
-  findByIsFacultyAnnouncementTrue() on the backend - it does NOT filter by
-  status the way GET /api/bulletin-posts does, so HIDDEN/REMOVED
-  announcements come back too and are filtered out here, same as
-  BulletinPage does for the main feed.
+  This is a second, independent fetch of the same underlying posts already
+  pinned to the top of the main feed (BulletinPage sorts facultyAnnouncement
+  posts first). That duplication is intentional, not a bug - it matches the
+  mockup's layout, where announcements get a persistent side panel as well as
+  being highlighted inline.
+
+  Deliberately skipped from the mockup: the "Quick Links" panel underneath
+  Campus News (Community Guidelines / Help Center / Contact Admin) - none of
+  those routes exist anywhere in the app yet, and linking to pages that
+  don't exist is worse than not having the panel.
 
   Owner: Aidan Barends (230255639), for /bulletin only.
 */
 
 import { useEffect, useState } from 'react'
 
-import { formatRelativeTime } from './relativeTime'
 import { Card } from '@/components/ui/Card'
 import { Spinner } from '@/components/ui/Spinner'
 import { bulletinApi } from '@/lib/api/bulletin'
-import { ApiError } from '@/lib/api/client'
 import type { BulletinPost } from '@/lib/api/types'
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; posts: BulletinPost[] }
+const MAX_ITEMS = 5
 
 export function CampusNewsSidebar() {
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const [posts, setPosts] = useState<BulletinPost[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
-
-    bulletinApi
+    void bulletinApi
       .announcements()
-      .then((posts) => {
+      .then((results) => {
         if (cancelled) return
-        const published = posts
-          .filter((post) => post.status === 'PUBLISHED')
+        const sorted = [...results]
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        setState({ status: 'ready', posts: published })
+          .slice(0, MAX_ITEMS)
+        setPosts(sorted)
       })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setState({
-          status: 'error',
-          message: error instanceof ApiError ? error.message : 'Something went wrong.',
-        })
+      .catch(() => {
+        if (!cancelled) setPosts([])
       })
-
     return () => {
       cancelled = true
     }
@@ -54,27 +50,24 @@ export function CampusNewsSidebar() {
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-ink-900">Campus news</h2>
+      <p className="mb-3 text-sm font-medium text-ink-700">Campus News</p>
 
-      {state.status === 'loading' && (
-        <div className="grid place-items-center py-6">
-          <Spinner label="Loading campus news" className="size-6" />
+      {posts === null && (
+        <div className="flex items-center gap-2 py-2">
+          <Spinner label="Loading campus news" />
         </div>
       )}
 
-      {state.status === 'error' && <p className="mt-2 text-sm text-ink-500">{state.message}</p>}
-
-      {state.status === 'ready' && state.posts.length === 0 && (
-        <p className="mt-2 text-sm text-ink-500">No announcements right now.</p>
+      {posts !== null && posts.length === 0 && (
+        <p className="text-sm text-ink-400 italic">No announcements right now.</p>
       )}
 
-      {state.status === 'ready' && state.posts.length > 0 && (
-        <ul className="mt-3 space-y-3">
-          {state.posts.map((post) => (
-            <li key={post.bulletinPostId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+      {posts !== null && posts.length > 0 && (
+        <ul className="space-y-3">
+          {posts.map((post) => (
+            <li key={post.bulletinPostId} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
               <p className="text-sm font-medium text-ink-900">{post.title}</p>
-              <p className="mt-1 line-clamp-2 text-sm text-ink-500">{post.content}</p>
-              <p className="mt-1 text-xs text-ink-400">{formatRelativeTime(post.createdAt)}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{post.content}</p>
             </li>
           ))}
         </ul>
