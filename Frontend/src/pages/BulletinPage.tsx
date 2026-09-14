@@ -26,7 +26,10 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CampusNewsSidebar } from '@/components/bulletin/CampusNewsSidebar'
+import { PostActions } from '@/components/bulletin/PostActions'
 import { PostComposer } from '@/components/bulletin/PostComposer'
+import { formatRelativeTime } from '@/components/bulletin/relativeTime'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -38,23 +41,6 @@ import { ApiError } from '@/lib/api/client'
 import type { BulletinPost, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 import type { BulletinPostValues } from '@/lib/schemas'
-
-/** Duplicated from ListingDetailsPage.tsx rather than pulled into a shared
- * util - a 12-line date formatter isn't worth introducing a new shared file
- * and coordinating with the team over, but if a THIRD page ends up needing
- * this, that's the point to actually raise it and consolidate. */
-const absoluteDateFormatter = new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium' })
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const diffMin = Math.floor(diffMs / 60_000)
-  if (diffMin < 1) return 'Just now'
-  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
-  const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`
-  const diffDay = Math.floor(diffHr / 24)
-  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
-  return absoluteDateFormatter.format(new Date(iso))
-}
 
 /** Faculty announcements pinned to the top, newest first within each group -
  * matches the scaffold's own TODO note. Shared by the initial load and by
@@ -137,63 +123,117 @@ export function BulletinPage() {
     setAuthors((previous) => new Map(previous).set(user.userId, user))
   }
 
+  // No try/catch here on purpose, same as handleCreatePost above - PostActions
+  // (via PostComposer's edit mode) is what knows how to show the failure, so
+  // the error is left to propagate there rather than being swallowed here.
+  const handleUpdatePost = async (post: BulletinPost, values: BulletinPostValues) => {
+    const updated = await bulletinApi.update(post.bulletinPostId, {
+      authorId: post.authorId,
+      title: values.title,
+      content: values.content,
+      status: post.status,
+      isFacultyAnnouncement: post.facultyAnnouncement,
+    })
+
+    setState((previous) =>
+      previous.status === 'ready'
+        ? {
+            status: 'ready',
+            posts: sortPosts(
+              previous.posts.map((existing) =>
+                existing.bulletinPostId === post.bulletinPostId ? updated : existing,
+              ),
+            ),
+          }
+        : previous,
+    )
+  }
+
+  /** Same no-try/catch reasoning as handleUpdatePost - PostActions shows the error. */
+  const handleDeletePost = async (post: BulletinPost) => {
+    await bulletinApi.remove(post.bulletinPostId)
+
+    setState((previous) =>
+      previous.status === 'ready'
+        ? { status: 'ready', posts: previous.posts.filter((existing) => existing.bulletinPostId !== post.bulletinPostId) }
+        : previous,
+    )
+  }
+
   return (
     <>
       <PageHeader title="Campus bulletin" subtitle="Announcements and notices" />
 
-      <div className="mb-4">
-        <PostComposer onSubmit={handleCreatePost} />
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <div className="mb-4">
+            <PostComposer onSubmit={handleCreatePost} />
+          </div>
+
+          {state.status === 'loading' && (
+            <div className="grid place-items-center py-16">
+              <Spinner label="Loading bulletin" className="size-8" />
+            </div>
+          )}
+
+          {state.status === 'error' && (
+            <EmptyState
+              title="Couldn't load the bulletin"
+              description={state.message}
+              action={
+                <Button variant="ghost" onClick={() => void load()}>
+                  Try again
+                </Button>
+              }
+            />
+          )}
+
+          {state.status === 'ready' && state.posts.length === 0 && (
+            <EmptyState
+              title="Nothing posted yet"
+              description="Be the first to share something with the campus."
+            />
+          )}
+
+          {state.status === 'ready' && state.posts.length > 0 && (
+            <div className="space-y-4">
+              {state.posts.map((post) => {
+                const author = authors.get(post.authorId)
+                const authorName = author ? `${author.firstName} ${author.lastName}` : null
+                const isOwner = user?.userId === post.authorId
+
+                return (
+                  <Card key={post.bulletinPostId}>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={authorName} className="size-9" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-ink-900">{authorName ?? 'Someone'}</p>
+                        <p className="text-xs text-ink-500">{formatRelativeTime(post.createdAt)}</p>
+                      </div>
+                      {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
+                    </div>
+
+                    <h2 className="mt-3 text-sm font-semibold text-ink-900">{post.title}</h2>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-700">{post.content}</p>
+
+                    {isOwner && (
+                      <PostActions
+                        post={post}
+                        onUpdate={(values) => handleUpdatePost(post, values)}
+                        onDelete={() => handleDeletePost(post)}
+                      />
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="md:col-span-1">
+          <CampusNewsSidebar />
+        </div>
       </div>
-
-      {state.status === 'loading' && (
-        <div className="grid place-items-center py-16">
-          <Spinner label="Loading bulletin" className="size-8" />
-        </div>
-      )}
-
-      {state.status === 'error' && (
-        <EmptyState
-          title="Couldn't load the bulletin"
-          description={state.message}
-          action={
-            <Button variant="ghost" onClick={() => void load()}>
-              Try again
-            </Button>
-          }
-        />
-      )}
-
-      {state.status === 'ready' && state.posts.length === 0 && (
-        <EmptyState
-          title="Nothing posted yet"
-          description="Be the first to share something with the campus."
-        />
-      )}
-
-      {state.status === 'ready' && state.posts.length > 0 && (
-        <div className="space-y-4">
-          {state.posts.map((post) => {
-            const author = authors.get(post.authorId)
-            const authorName = author ? `${author.firstName} ${author.lastName}` : null
-
-            return (
-              <Card key={post.bulletinPostId}>
-                <div className="flex items-center gap-3">
-                  <Avatar name={authorName} className="size-9" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink-900">{authorName ?? 'Someone'}</p>
-                    <p className="text-xs text-ink-500">{formatRelativeTime(post.createdAt)}</p>
-                  </div>
-                  {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
-                </div>
-
-                <h2 className="mt-3 text-sm font-semibold text-ink-900">{post.title}</h2>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-ink-700">{post.content}</p>
-              </Card>
-            )
-          })}
-        </div>
-      )}
     </>
   )
 }
