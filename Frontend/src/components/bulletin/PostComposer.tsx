@@ -11,6 +11,12 @@
   regular student has no business creating a faculty announcement, and there
   is no moderation/HIDDEN workflow built anywhere for this page to hook into.
 
+  Also doubles as the edit form (see PostActions): pass initialValues to
+  pre-fill title/content, submitLabel/onCancel to swap the button row. Editing
+  never touches status/isFacultyAnnouncement - those aren't fields on this
+  form - the caller (BulletinPage.handleUpdatePost) re-sends the post's
+  existing values for them since PUT replaces the whole record.
+
   Owner: Aidan Barends (230255639), for /bulletin only.
 */
 
@@ -27,26 +33,44 @@ import { bulletinPostSchema } from '@/lib/schemas'
 
 type PostComposerProps = {
   onSubmit: (values: BulletinPostValues) => Promise<void>
+  /** Pre-fills the form and switches reset() off on success - set for edit mode. */
+  initialValues?: BulletinPostValues
+  submitLabel?: string
+  errorMessage?: string
+  /** Renders a Cancel button next to submit - set for edit mode. */
+  onCancel?: () => void
 }
 
-export function PostComposer({ onSubmit }: PostComposerProps) {
+export function PostComposer({
+  onSubmit,
+  initialValues,
+  submitLabel = 'Post',
+  errorMessage = "Couldn't post that. Please try again.",
+  onCancel,
+}: PostComposerProps) {
   const {
     register,
     handleSubmit,
     reset,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<BulletinPostValues>({ resolver: zodResolver(bulletinPostSchema) })
+  } = useForm<BulletinPostValues>({
+    resolver: zodResolver(bulletinPostSchema),
+    defaultValues: initialValues,
+  })
 
   const submit = handleSubmit(async (values) => {
     try {
       await onSubmit(values)
-      reset()
+      // Editing unmounts this form on success (PostActions closes the inline
+      // editor) rather than reusing it for another submission, so clearing
+      // it back to blank would only be visible if the save failed midway.
+      if (!initialValues) reset()
     } catch {
       // The parent (BulletinPage) already knows the specific error message;
       // this form only needs to know something went wrong so it can show a
       // generic fallback without duplicating error-formatting logic.
-      setError('root', { message: "Couldn't post that. Please try again." })
+      setError('root', { message: errorMessage })
     }
   })
 
@@ -70,9 +94,14 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
           {...register('content')}
         />
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {onCancel && (
+            <Button type="button" variant="ghost" disabled={isSubmitting} onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
           <Button type="submit" loading={isSubmitting}>
-            Post
+            {submitLabel}
           </Button>
         </div>
       </form>
