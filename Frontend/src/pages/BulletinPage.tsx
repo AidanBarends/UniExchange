@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { CampusNewsSidebar } from '@/components/bulletin/CampusNewsSidebar'
+import { FilterFeedSidebar } from '@/components/bulletin/FilterFeedSidebar'
 import { PostCard } from '@/components/bulletin/PostCard'
 import { PostComposer } from '@/components/bulletin/PostComposer'
 import { Alert } from '@/components/ui/Alert'
@@ -189,8 +190,12 @@ export function BulletinPage() {
     <>
       <PageHeader title="Campus bulletin" subtitle="Announcements and notices" />
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="space-y-4 md:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-4">
+        <div className="hidden lg:block lg:col-span-1">
+          <FilterFeedSidebar />
+        </div>
+
+        <div className="space-y-4 lg:col-span-2">
           <PostComposer onSubmit={handleCreatePost} />
 
           {actionError && <Alert>{actionError}</Alert>}
@@ -240,7 +245,7 @@ export function BulletinPage() {
             })}
         </div>
 
-        <div className="md:col-span-1">
+        <div className="lg:col-span-1">
           <CampusNewsSidebar />
         </div>
       </div>
