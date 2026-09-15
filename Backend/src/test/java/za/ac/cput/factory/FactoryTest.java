@@ -37,6 +37,7 @@ import za.ac.cput.domain.communication.Message;
 import za.ac.cput.domain.communication.Notification;
 import za.ac.cput.domain.community.BulletinPost;
 import za.ac.cput.domain.enums.AccountStatus;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.domain.enums.BulletinPostStatus;
 import za.ac.cput.domain.enums.ListingStatus;
 import za.ac.cput.domain.enums.NotificationType;
@@ -488,17 +489,19 @@ class FactoryTest {
         @Test
         void bulletinPost() {
             BulletinPost post = BulletinPostFactory.createBulletinPost(1L, "Res meeting",
-                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false);
+                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false,
+                    BulletinPostCategory.EVENT);
 
             assertEquals("Res meeting", post.getTitle());
             assertEquals(BulletinPostStatus.PUBLISHED, post.getStatus());
             assertFalse(post.isFacultyAnnouncement());
+            assertEquals(BulletinPostCategory.EVENT, post.getCategory());
         }
 
         @Test
         void bulletinPostRejectsBlankContent() {
             assertThrows(IllegalArgumentException.class, () -> BulletinPostFactory.createBulletinPost(
-                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false));
+                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false, BulletinPostCategory.EVENT));
         }
 
         @Test

@@ -41,7 +41,7 @@ public class BulletinPostController {
     public ResponseEntity<BulletinPost> create(@RequestBody BulletinPostRequest request) {
         BulletinPost created = this.service.create(BulletinPostFactory.createBulletinPost(
                 request.authorId(), request.title(), request.content(), request.status(),
-                request.isFacultyAnnouncement()));
+                request.isFacultyAnnouncement(), request.category()));
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -60,7 +60,7 @@ public class BulletinPostController {
         }
         return ResponseEntity.ok(this.service.update(BulletinPostFactory.updateBulletinPost(
                 existing, request.authorId(), request.title(), request.content(), request.status(),
-                request.isFacultyAnnouncement())));
+                request.isFacultyAnnouncement(), request.category())));
     }
 
     @DeleteMapping("/{id}")

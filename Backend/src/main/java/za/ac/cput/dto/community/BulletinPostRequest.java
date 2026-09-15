@@ -10,6 +10,7 @@
 
 package za.ac.cput.dto.community;
 
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.domain.enums.BulletinPostStatus;
 
 public record BulletinPostRequest(
@@ -17,5 +18,6 @@ public record BulletinPostRequest(
         String title,
         String content,
         BulletinPostStatus status,
-        boolean isFacultyAnnouncement) {
+        boolean isFacultyAnnouncement,
+        BulletinPostCategory category) {
 }
