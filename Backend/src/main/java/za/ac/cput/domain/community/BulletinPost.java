@@ -9,6 +9,7 @@
 package za.ac.cput.domain.community;
 
 import jakarta.persistence.*;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.domain.enums.BulletinPostStatus;
 
 import java.time.LocalDateTime;
@@ -38,6 +39,15 @@ public class BulletinPost {
     @Column(nullable = false, name = "is_faculty_announcement")
     private boolean isFacultyAnnouncement;
 
+    // columnDefinition gives MySQL a default so ADD COLUMN succeeds even on
+    // a table that already has rows (no Flyway/Liquibase in this project -
+    // ddl-auto=update runs a raw ALTER TABLE, and MySQL under strict mode
+    // rejects a NOT NULL column with no default on a non-empty table).
+    // Existing rows backfill to GENERAL.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'GENERAL'")
+    private BulletinPostCategory category;
+
     @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
@@ -59,6 +69,7 @@ public class BulletinPost {
         this.content = builder.content;
         this.status = builder.status;
         this.isFacultyAnnouncement = builder.isFacultyAnnouncement;
+        this.category = builder.category;
         this.createdAt = builder.createdAt;
         this.updatedAt = builder.updatedAt;
         this.removedAt = builder.removedAt;
@@ -89,6 +100,10 @@ public class BulletinPost {
         return isFacultyAnnouncement;
     }
 
+    public BulletinPostCategory getCategory() {
+        return category;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -111,6 +126,7 @@ public class BulletinPost {
                 ", content='" + content + '\'' +
                 ", status=" + status +
                 ", isFacultyAnnouncement=" + isFacultyAnnouncement +
+                ", category=" + category +
                 ", createdAt=" + createdAt +
                 ", updatedAt=" + updatedAt +
                 ", removedAt=" + removedAt +
@@ -127,6 +143,7 @@ public class BulletinPost {
         private String content;
         private BulletinPostStatus status;
         private boolean isFacultyAnnouncement;
+        private BulletinPostCategory category;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
         private LocalDateTime removedAt;
@@ -162,6 +179,11 @@ public class BulletinPost {
             return this;
         }
 
+        public Builder setCategory(BulletinPostCategory category) {
+            this.category = category;
+            return this;
+        }
+
         public Builder setCreatedAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -184,6 +206,7 @@ public class BulletinPost {
             this.content = bulletinPost.content;
             this.status = bulletinPost.status;
             this.isFacultyAnnouncement = bulletinPost.isFacultyAnnouncement;
+            this.category = bulletinPost.category;
             this.createdAt = bulletinPost.createdAt;
             this.updatedAt = bulletinPost.updatedAt;
             this.removedAt = bulletinPost.removedAt;
