@@ -27,13 +27,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { CampusNewsSidebar } from '@/components/bulletin/CampusNewsSidebar'
-import { PostActions } from '@/components/bulletin/PostActions'
+import { PostCard } from '@/components/bulletin/PostCard'
 import { PostComposer } from '@/components/bulletin/PostComposer'
 import { Alert } from '@/components/ui/Alert'
-import { Avatar } from '@/components/ui/Avatar'
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { bulletinApi } from '@/lib/api/bulletin'
@@ -230,27 +227,15 @@ export function BulletinPage() {
               const isOwner = user?.userId === post.authorId
 
               return (
-                <Card key={post.bulletinPostId}>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={authorName} className="size-9" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink-900">{authorName ?? 'Someone'}</p>
-                      <p className="text-xs text-ink-500">{formatRelativeTime(post.createdAt)}</p>
-                    </div>
-                    {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
-                  </div>
-
-                  <h2 className="mt-3 text-sm font-semibold text-ink-900">{post.title}</h2>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink-700">{post.content}</p>
-
-                  {isOwner && (
-                    <PostActions
-                      initialValues={{ title: post.title, content: post.content }}
-                      onSave={(values) => handleUpdatePost(post, values)}
-                      onDelete={() => handleDeletePost(post)}
-                    />
-                  )}
-                </Card>
+                <PostCard
+                  key={post.bulletinPostId}
+                  post={post}
+                  authorName={authorName}
+                  isOwner={isOwner}
+                  formatRelativeTime={formatRelativeTime}
+                  onSave={(values) => handleUpdatePost(post, values)}
+                  onDelete={() => handleDeletePost(post)}
+                />
               )
             })}
         </div>
