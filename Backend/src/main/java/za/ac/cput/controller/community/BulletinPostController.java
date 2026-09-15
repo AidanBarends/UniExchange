@@ -8,7 +8,8 @@
 
  Edited: Aidan Barends 230255639
  Date: 15 September 2026
- Added category to create/update calls and a category filter endpoint.
+ Added category to create/update calls, a category filter endpoint, and
+ restricted update/delete to the post's own author.
 */
 
 package za.ac.cput.controller.community;
@@ -17,6 +18,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,6 +32,7 @@ import za.ac.cput.domain.community.BulletinPost;
 import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.dto.community.BulletinPostRequest;
 import za.ac.cput.factory.community.BulletinPostFactory;
+import za.ac.cput.security.UniExchangeUserDetailsService.AuthenticatedUser;
 import za.ac.cput.service.community.IBulletinPostService;
 
 @RestController
@@ -58,10 +61,14 @@ public class BulletinPostController {
 
     @PutMapping("/{id}")
     public ResponseEntity<BulletinPost> update(@PathVariable Long id,
-                                               @RequestBody BulletinPostRequest request) {
+                                               @RequestBody BulletinPostRequest request,
+                                               @AuthenticationPrincipal AuthenticatedUser principal) {
         BulletinPost existing = this.service.read(id);
         if (existing == null) {
             return ResponseEntity.notFound().build();
+        }
+        if (existing.getAuthorId() != principal.getUser().getUserId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(this.service.update(BulletinPostFactory.updateBulletinPost(
                 existing, request.authorId(), request.title(), request.content(), request.status(),
@@ -69,7 +76,15 @@ public class BulletinPostController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @AuthenticationPrincipal AuthenticatedUser principal) {
+        BulletinPost existing = this.service.read(id);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (existing.getAuthorId() != principal.getUser().getUserId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return this.service.delete(id)
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
