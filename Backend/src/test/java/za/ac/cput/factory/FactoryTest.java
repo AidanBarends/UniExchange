@@ -490,18 +490,26 @@ class FactoryTest {
         void bulletinPost() {
             BulletinPost post = BulletinPostFactory.createBulletinPost(1L, "Res meeting",
                     "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false,
-                    BulletinPostCategory.EVENT);
+                    BulletinPostCategory.STUDY_GROUP);
 
             assertEquals("Res meeting", post.getTitle());
             assertEquals(BulletinPostStatus.PUBLISHED, post.getStatus());
             assertFalse(post.isFacultyAnnouncement());
-            assertEquals(BulletinPostCategory.EVENT, post.getCategory());
+            assertEquals(BulletinPostCategory.STUDY_GROUP, post.getCategory());
+        }
+
+        @Test
+        void bulletinPostDefaultsCategoryWhenNull() {
+            BulletinPost post = BulletinPostFactory.createBulletinPost(1L, "Res meeting",
+                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false, null);
+
+            assertEquals(BulletinPostCategory.GENERAL, post.getCategory());
         }
 
         @Test
         void bulletinPostRejectsBlankContent() {
             assertThrows(IllegalArgumentException.class, () -> BulletinPostFactory.createBulletinPost(
-                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false, BulletinPostCategory.EVENT));
+                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false, BulletinPostCategory.GENERAL));
         }
 
         @Test
