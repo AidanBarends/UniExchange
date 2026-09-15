@@ -5,6 +5,10 @@
 
  Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
+
+ Edited: Aidan Barends 230255639
+ Date: 15 September 2026
+ Restricted update/delete/markSold to the listing's own seller.
 */
 
 package za.ac.cput.controller.marketplace;
@@ -13,6 +17,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -27,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import za.ac.cput.domain.marketplace.Listing;
 import za.ac.cput.dto.marketplace.ListingRequest;
 import za.ac.cput.factory.marketplace.ListingFactory;
+import za.ac.cput.security.UniExchangeUserDetailsService.AuthenticatedUser;
 import za.ac.cput.service.marketplace.IListingService;
 
 @RestController
@@ -54,10 +60,14 @@ public class ListingController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Listing> update(@PathVariable Long id, @RequestBody ListingRequest request) {
+    public ResponseEntity<Listing> update(@PathVariable Long id, @RequestBody ListingRequest request,
+                                          @AuthenticationPrincipal AuthenticatedUser principal) {
         Listing existing = this.service.read(id);
         if (existing == null) {
             return ResponseEntity.notFound().build();
+        }
+        if (existing.getSellerId() != principal.getUser().getUserId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(this.service.update(ListingFactory.updateListing(
                 existing, request.sellerId(), request.categoryId(), request.campusId(), request.title(),
@@ -65,7 +75,15 @@ public class ListingController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @AuthenticationPrincipal AuthenticatedUser principal) {
+        Listing existing = this.service.read(id);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (existing.getSellerId() != principal.getUser().getUserId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         return this.service.delete(id)
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
@@ -89,7 +107,15 @@ public class ListingController {
     }
 
     @PatchMapping("/{id}/sold")
-    public ResponseEntity<Listing> markSold(@PathVariable Long id) {
+    public ResponseEntity<Listing> markSold(@PathVariable Long id,
+                                            @AuthenticationPrincipal AuthenticatedUser principal) {
+        Listing existing = this.service.read(id);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (existing.getSellerId() != principal.getUser().getUserId()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         Listing updated = this.service.markAsSold(id);
         return updated == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(updated);
     }
