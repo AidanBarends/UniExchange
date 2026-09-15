@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import za.ac.cput.domain.community.BulletinPost;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.dto.community.BulletinPostRequest;
 import za.ac.cput.factory.community.BulletinPostFactory;
 import za.ac.cput.service.community.IBulletinPostService;
@@ -83,6 +84,11 @@ public class BulletinPostController {
     @GetMapping("/announcements")
     public List<BulletinPost> announcements() {
         return this.service.findAnnouncements();
+    }
+
+    @GetMapping("/category/{category}")
+    public List<BulletinPost> byCategory(@PathVariable BulletinPostCategory category) {
+        return this.service.findByCategory(category);
     }
 
 }
