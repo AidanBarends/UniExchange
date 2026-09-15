@@ -15,6 +15,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import za.ac.cput.domain.community.BulletinPost;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.repository.community.BulletinPostRepository;
 
 @Service
@@ -63,6 +64,11 @@ public class BulletinPostServiceImpl implements IBulletinPostService {
     @Override
     public List<BulletinPost> findAnnouncements() {
         return this.repository.findByIsFacultyAnnouncementTrue();
+    }
+
+    @Override
+    public List<BulletinPost> findByCategory(BulletinPostCategory category) {
+        return this.repository.findByCategory(category);
     }
 
 }
