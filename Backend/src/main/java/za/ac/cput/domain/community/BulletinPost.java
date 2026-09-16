@@ -5,10 +5,6 @@
 
  Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
-
- Edited: Aidan Barends 230255639
- Date: 15 September 2026
- Added category field for Filter Feed (Events/Study Groups/Lost & Found).
 */
 package za.ac.cput.domain.community;
 
@@ -43,11 +39,6 @@ public class BulletinPost {
     @Column(nullable = false, name = "is_faculty_announcement")
     private boolean isFacultyAnnouncement;
 
-    // columnDefinition gives MySQL a default so ADD COLUMN succeeds even on
-    // a table that already has rows (no Flyway/Liquibase in this project -
-    // ddl-auto=update runs a raw ALTER TABLE, and MySQL under strict mode
-    // rejects a NOT NULL column with no default on a non-empty table).
-    // Existing rows backfill to GENERAL.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'GENERAL'")
     private BulletinPostCategory category;

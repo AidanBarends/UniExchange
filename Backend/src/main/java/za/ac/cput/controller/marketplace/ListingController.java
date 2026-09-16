@@ -5,10 +5,6 @@
 
  Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
-
- Edited: Aidan Barends 230255639
- Date: 15 September 2026
- Restricted update/delete/markSold to the listing's own seller.
 */
 
 package za.ac.cput.controller.marketplace;

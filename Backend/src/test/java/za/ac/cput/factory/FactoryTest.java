@@ -12,9 +12,6 @@
 
  Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
-
- Edited: Aidan Barends 230255639
- Date: 15 September 2026
 */
 
 package za.ac.cput.factory;
