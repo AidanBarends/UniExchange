@@ -8,19 +8,18 @@
   editing/confirmingDelete state itself so the swap is a genuine swap, not an
   addition.
 
-  IMPORTANT: same gap as ListingController - BulletinPostController's PUT and
-  DELETE don't check that the caller is actually the post's author, they
-  accept the request from any authenticated user. Hiding Edit/Delete for
-  non-owners (see isOwner in BulletinPage) is a UI decision, not enforcement.
-  The real fix needs a server-side ownership check in BulletinPostController/
-  BulletinPostServiceImpl - shared backend code, not something to patch from
-  this page.
+  Hiding Edit/Delete for non-owners (see isOwner in BulletinPage) is still
+  just a UI nicety - BulletinPostController's PUT/DELETE now also reject a
+  non-author server-side (403), so this isn't the only thing standing in the
+  way, just the thing that keeps a non-owner from seeing controls that would
+  fail anyway.
 
   Owner: Aidan Barends (230255639), for /bulletin only.
 */
 
 import { useState } from 'react'
 
+import { CATEGORY_LABELS } from '@/components/bulletin/categoryLabels'
 import { PostComposer } from '@/components/bulletin/PostComposer'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -50,7 +49,12 @@ export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave
         <p className="truncate text-sm font-medium text-ink-900">{authorName ?? 'Someone'}</p>
         <p className="text-xs text-ink-500">{formatRelativeTime(post.createdAt)}</p>
       </div>
-      {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
+      <div className="flex gap-1.5">
+        {/* GENERAL isn't shown - it's the "no specific category" default,
+            not something worth a badge on every ordinary post. */}
+        {post.category !== 'GENERAL' && <Badge tone="neutral">{CATEGORY_LABELS[post.category]}</Badge>}
+        {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
+      </div>
     </div>
   )
 
@@ -60,7 +64,7 @@ export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave
         {header}
         <div className="mt-3">
           <PostComposer
-            initialValues={{ title: post.title, content: post.content }}
+            initialValues={{ title: post.title, content: post.content, category: post.category }}
             submitLabel="Save"
             onCancel={() => setEditing(false)}
             onSubmit={async (values) => {

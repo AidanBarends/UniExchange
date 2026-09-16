@@ -145,6 +145,8 @@ export type Message = {
 
 export type BulletinPostStatus = 'PUBLISHED' | 'HIDDEN' | 'REMOVED'
 
+export type BulletinPostCategory = 'GENERAL' | 'EVENT' | 'STUDY_GROUP' | 'LOST_AND_FOUND'
+
 export type BulletinPost = {
   bulletinPostId: number
   authorId: number
@@ -153,6 +155,7 @@ export type BulletinPost = {
   status: BulletinPostStatus
   /** Sent as `isFacultyAnnouncement`, received as `facultyAnnouncement`. */
   facultyAnnouncement: boolean
+  category: BulletinPostCategory
   createdAt: string
   updatedAt: string
   removedAt: string | null

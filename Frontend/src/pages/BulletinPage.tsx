@@ -5,19 +5,19 @@
   Product Details.
   ROUTE: /bulletin
 
-  IMPORTANT - the team's mockup for this page shows a lot more than the
-  backend actually supports. BulletinPost only has: title, content, authorId,
-  status, isFacultyAnnouncement, timestamps. There is NO likes entity, NO
-  comments entity, NO tags entity, and NO post-type/category field
-  (Events/Study Groups/Lost & Found in the mockup have nothing behind them).
-  None of that is built here.
+  IMPORTANT - the team's mockup for this page still shows more than the
+  backend supports: NO likes entity, NO comments entity, NO tags entity.
+  BulletinPost now has a real category field (see BulletinPostCategory in
+  types.ts) - Filter Feed, the composer's category picker, and each post's
+  category badge are all wired to it for real. None of the rest is built.
 
   NOTE: you POST `isFacultyAnnouncement` but the response comes back as
   `facultyAnnouncement` (Jackson strips the `is` prefix on boolean getters) -
   see the comment in src/lib/api/types.ts.
 
   status is PUBLISHED | HIDDEN | REMOVED - the backend returns all of them
-  from GET /api/bulletin-posts, so PUBLISHED-only filtering happens here.
+  from both GET /api/bulletin-posts and GET .../category/:category, so
+  PUBLISHED-only filtering happens here either way.
 
   Your own components go in src/components/bulletin/.
 */
@@ -25,18 +25,18 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { useAuth } from '@/auth/useAuth'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { CampusNewsSidebar } from '@/components/bulletin/CampusNewsSidebar'
 import { FilterFeedSidebar } from '@/components/bulletin/FilterFeedSidebar'
 import { PostCard } from '@/components/bulletin/PostCard'
 import { PostComposer } from '@/components/bulletin/PostComposer'
+import { PageHeader } from '@/components/layout/PageHeader'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { bulletinApi } from '@/lib/api/bulletin'
 import { ApiError } from '@/lib/api/client'
-import type { BulletinPost, User } from '@/lib/api/types'
+import type { BulletinPost, BulletinPostCategory, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 import type { BulletinPostValues } from '@/lib/schemas'
 
@@ -58,9 +58,9 @@ function formatRelativeTime(iso: string): string {
 }
 
 /** Faculty announcements pinned to the top, newest first within each group -
- * matches the scaffold's own TODO note. Shared by the initial load and by
- * inserting a freshly-created post, so a new (non-announcement) post can
- * never jump above a pinned announcement just because it's newest. */
+ * matches the scaffold's own TODO note. Shared by the initial load, filter
+ * changes, and inserting a freshly-created post, so nothing can jump above a
+ * pinned announcement just because it's newest. */
 function sortPosts(posts: BulletinPost[]): BulletinPost[] {
   return [...posts].sort((a, b) => {
     if (a.facultyAnnouncement !== b.facultyAnnouncement) {
@@ -81,13 +81,16 @@ export function BulletinPage() {
   // authorId -> User, so posts from the same person only fetch once.
   const [authors, setAuthors] = useState<Map<number, User>>(new Map())
   const [actionError, setActionError] = useState<string | null>(null)
+  // null = "All Posts". Owned here, not inside FilterFeedSidebar, since it
+  // decides which endpoint load() calls.
+  const [selectedCategory, setSelectedCategory] = useState<BulletinPostCategory | null>(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (category: BulletinPostCategory | null) => {
     setState({ status: 'loading' })
 
     let posts: BulletinPost[]
     try {
-      posts = await bulletinApi.list()
+      posts = category === null ? await bulletinApi.list() : await bulletinApi.byCategory(category)
     } catch (error) {
       setState({
         status: 'error',
@@ -115,9 +118,10 @@ export function BulletinPage() {
   useEffect(() => {
     // Deferred a tick so the setState calls inside load() happen from an
     // async continuation rather than synchronously in the effect body -
-    // same pattern used in ListingDetailsPage.tsx.
-    Promise.resolve().then(() => load())
-  }, [load])
+    // same pattern used in ListingDetailsPage.tsx. Re-runs whenever the
+    // filter changes, which is exactly what should re-fetch.
+    Promise.resolve().then(() => load(selectedCategory))
+  }, [selectedCategory, load])
 
   const handleCreatePost = async (values: BulletinPostValues) => {
     if (!user) return // page is behind ProtectedRoute, but keeps this honest either way
@@ -128,12 +132,19 @@ export function BulletinPage() {
       content: values.content,
       status: 'PUBLISHED',
       isFacultyAnnouncement: false,
+      category: values.category,
     })
 
-    setState((previous) => ({
-      status: 'ready',
-      posts: sortPosts(previous.status === 'ready' ? [created, ...previous.posts] : [created]),
-    }))
+    // Only insert into the visible list if it actually belongs to the
+    // current filter - posting an Event while filtered to Lost & Found
+    // shouldn't make it appear where it doesn't belong. It's still created
+    // either way; just not shown under a filter it doesn't match.
+    if (selectedCategory === null || created.category === selectedCategory) {
+      setState((previous) => ({
+        status: 'ready',
+        posts: sortPosts(previous.status === 'ready' ? [created, ...previous.posts] : [created]),
+      }))
+    }
 
     // Already know who this is - no need to re-fetch your own user record.
     setAuthors((previous) => new Map(previous).set(user.userId, user))
@@ -141,11 +152,8 @@ export function BulletinPage() {
 
   // Belt-and-suspenders: the Edit/Delete buttons only render for isOwner
   // already, but that's a UI decision, not enforcement - BulletinPostController's
-  // PUT and DELETE accept the request from any authenticated user, not just
-  // the post's author. Refusing here client-side closes nothing on its own -
-  // anyone can still call the API directly - but it stops this page from
-  // being the thing that fires an unauthorized request. The real fix has to
-  // be a server-side ownership check.
+  // PUT and DELETE now also reject a non-author server-side (403), so this
+  // is genuine defense in depth, not the only thing standing in the way.
   const handleUpdatePost = async (post: BulletinPost, values: BulletinPostValues) => {
     if (!user || user.userId !== post.authorId) {
       throw new Error('Only the author can edit this post.')
@@ -157,15 +165,27 @@ export function BulletinPage() {
       content: values.content,
       status: post.status,
       isFacultyAnnouncement: post.facultyAnnouncement,
+      category: values.category,
     })
 
-    setState((previous) => ({
-      status: 'ready',
-      posts:
-        previous.status === 'ready'
-          ? sortPosts(previous.posts.map((p) => (p.bulletinPostId === updated.bulletinPostId ? updated : p)))
-          : [updated],
-    }))
+    setState((previous) => {
+      if (previous.status !== 'ready') return { status: 'ready', posts: [updated] }
+
+      // If editing moved this post out of the currently-selected category,
+      // it should disappear from view rather than sit there contradicting
+      // the active filter.
+      if (selectedCategory !== null && updated.category !== selectedCategory) {
+        return {
+          status: 'ready',
+          posts: previous.posts.filter((p) => p.bulletinPostId !== updated.bulletinPostId),
+        }
+      }
+
+      return {
+        status: 'ready',
+        posts: sortPosts(previous.posts.map((p) => (p.bulletinPostId === updated.bulletinPostId ? updated : p))),
+      }
+    })
   }
 
   const handleDeletePost = async (post: BulletinPost) => {
@@ -192,7 +212,7 @@ export function BulletinPage() {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="hidden lg:block lg:col-span-1">
-          <FilterFeedSidebar />
+          <FilterFeedSidebar selected={selectedCategory} onSelect={setSelectedCategory} />
         </div>
 
         <div className="space-y-4 lg:col-span-2">
@@ -211,7 +231,7 @@ export function BulletinPage() {
               title="Couldn't load the bulletin"
               description={state.message}
               action={
-                <Button variant="ghost" onClick={() => void load()}>
+                <Button variant="ghost" onClick={() => void load(selectedCategory)}>
                   Try again
                 </Button>
               }
@@ -220,8 +240,12 @@ export function BulletinPage() {
 
           {state.status === 'ready' && state.posts.length === 0 && (
             <EmptyState
-              title="Nothing posted yet"
-              description="Be the first to share something with the campus."
+              title={selectedCategory === null ? 'Nothing posted yet' : 'Nothing in this category yet'}
+              description={
+                selectedCategory === null
+                  ? 'Be the first to share something with the campus.'
+                  : 'Try a different filter, or be the first to post here.'
+              }
             />
           )}
 

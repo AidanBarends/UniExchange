@@ -80,6 +80,7 @@ export const otpSchema = z.object({
 export const bulletinPostSchema = z.object({
   title: z.string().trim().min(1, 'Enter a title').max(150, 'Keep it under 150 characters'),
   content: z.string().trim().min(1, "Enter what's happening"),
+  category: z.enum(['GENERAL', 'EVENT', 'STUDY_GROUP', 'LOST_AND_FOUND']),
 })
 
 export type SignUpValues = z.infer<typeof signUpSchema>

@@ -23,9 +23,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
+import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/components/bulletin/categoryLabels'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Select } from '@/components/ui/Select'
 import { TextField } from '@/components/ui/TextField'
 import { Textarea } from '@/components/ui/Textarea'
 import type { BulletinPostValues } from '@/lib/schemas'
@@ -54,7 +56,10 @@ export function PostComposer({
     formState: { errors, isSubmitting },
   } = useForm<BulletinPostValues>({
     resolver: zodResolver(bulletinPostSchema),
-    defaultValues: initialValues,
+    // A new post needs a starting category too, or the picker would fall
+    // back to whichever <option> happens to render first with no explicit
+    // choice made.
+    defaultValues: initialValues ?? { category: 'GENERAL' },
   })
 
   const submit = handleSubmit(async (values) => {
@@ -80,6 +85,14 @@ export function PostComposer({
           error={errors.title?.message}
           {...register('title')}
         />
+
+        <Select label="Category" error={errors.category?.message} {...register('category')}>
+          {ALL_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {CATEGORY_LABELS[category]}
+            </option>
+          ))}
+        </Select>
 
         <Textarea
           label="What's happening on campus?"

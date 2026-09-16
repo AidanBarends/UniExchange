@@ -1,39 +1,48 @@
 /*
-  "Filter Feed" panel from the mockup.
+  "Filter Feed" panel from the mockup - now backed by the real
+  BulletinPostCategory field and GET /api/bulletin-posts/category/:category.
 
-  IMPORTANT: this is UI-only. BulletinPost has no category field, so there is
-  no real data to filter by yet - checking "Events" would have to either do
-  nothing (misleading - looks broken) or filter against a category invented
-  for a REAL post someone actually wrote (worse - attaches a false label to
-  someone's real content that anyone using the app would see, not just
-  something visible in a code comment).
+  Behaves like a single-select even though it's drawn as checkboxes, matching
+  the mockup's visual style: choosing a specific category deselects "All
+  Posts", and choosing "All Posts" clears back to everything. There's no
+  backend support for selecting MULTIPLE categories at once, so this doesn't
+  pretend to offer that.
 
-  So instead: "All Posts" is checked and locked on, since that's genuinely
-  the only real state right now. Everything else is disabled with a
-  "Coming soon" hint rather than pretending to work. Once BulletinPost has a
-  real category field, this becomes a real filter - the disabled items are a
-  placeholder for that, not a permanent design choice.
+  Trending Tags stays the disabled "Coming soon" mock from before - there is
+  still no tags entity anywhere in the backend, unrelated to this category
+  work.
 
-  Owner: Aidan Barends (230255639), for /bulletin only. MOCK UI - not
-  backend-connected. Do not treat as done; see roadmap for backend plan.
+  Owner: Aidan Barends (230255639), for /bulletin only.
 */
 
+import { CATEGORY_LABELS, FILTERABLE_CATEGORIES } from '@/components/bulletin/categoryLabels'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
+import type { BulletinPostCategory } from '@/lib/api/types'
 
-const COMING_SOON_CATEGORIES = ['Events', 'Study Groups', 'Lost & Found']
 const COMING_SOON_TAGS = ['#campus', '#midterms', '#textbookexchange', '#roomkeys']
 
-export function FilterFeedSidebar() {
+type FilterFeedSidebarProps = {
+  /** null means "All Posts" - no filter applied. */
+  selected: BulletinPostCategory | null
+  onSelect: (category: BulletinPostCategory | null) => void
+}
+
+export function FilterFeedSidebar({ selected, onSelect }: FilterFeedSidebarProps) {
   return (
     <div className="space-y-4">
       <Card>
         <p className="mb-3 text-sm font-medium text-ink-700">Filter Feed</p>
 
         <div className="space-y-2.5">
-          <Checkbox label="All Posts" checked disabled />
-          {COMING_SOON_CATEGORIES.map((category) => (
-            <Checkbox key={category} label={category} disabled hint="Coming soon" />
+          <Checkbox label="All Posts" checked={selected === null} onChange={() => onSelect(null)} />
+          {FILTERABLE_CATEGORIES.map((category) => (
+            <Checkbox
+              key={category}
+              label={CATEGORY_LABELS[category]}
+              checked={selected === category}
+              onChange={() => onSelect(selected === category ? null : category)}
+            />
           ))}
         </div>
       </Card>

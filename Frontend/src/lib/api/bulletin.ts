@@ -5,10 +5,14 @@
 
   GET is public. Reminder: you send `isFacultyAnnouncement` but read back
   `facultyAnnouncement`.
+
+  update/remove now require auth and are ownership-checked server-side
+  (BulletinPostController returns 403 for a non-author) - see
+  BulletinPostController.java.
 */
 
 import { authedRequest, request } from './client'
-import type { BulletinPost, BulletinPostStatus } from './types'
+import type { BulletinPost, BulletinPostCategory, BulletinPostStatus } from './types'
 
 export const bulletinApi = {
   list: () => request<BulletinPost[]>('/api/bulletin-posts'),
@@ -21,22 +25,25 @@ export const bulletinApi = {
 
   byAuthor: (authorId: number) => request<BulletinPost[]>(`/api/bulletin-posts/author/${authorId}`),
 
+  /** GET /api/bulletin-posts/category/:category - the path variable binds
+   * directly to the BulletinPostCategory enum on the backend, so it must be
+   * one of the exact enum names (e.g. "EVENT"), not a display label. */
+  byCategory: (category: BulletinPostCategory) =>
+    request<BulletinPost[]>(`/api/bulletin-posts/category/${category}`),
+
   create: (body: {
     authorId: number
     title: string
     content: string
     status: BulletinPostStatus
     isFacultyAnnouncement: boolean
+    category: BulletinPostCategory
   }) => authedRequest<BulletinPost>('/api/bulletin-posts', { method: 'POST', body }),
 
   /**
    * PUT replaces the whole post - authorId/status/isFacultyAnnouncement have
    * to be sent again even when only title/content changed, since
    * BulletinPostRequest has no partial-update variant.
-   *
-   * NOTE: like create, this is permitAll on the backend (see SecurityConfig) -
-   * PUT accepts the request from anyone, not just the post's author. Gating
-   * the edit UI to isOwner (see PostActions) is a UI decision, not enforcement.
    */
   update: (
     bulletinPostId: number,
@@ -46,10 +53,10 @@ export const bulletinApi = {
       content: string
       status: BulletinPostStatus
       isFacultyAnnouncement: boolean
+      category: BulletinPostCategory
     },
   ) => authedRequest<BulletinPost>(`/api/bulletin-posts/${bulletinPostId}`, { method: 'PUT', body }),
 
-  /** Same permitAll caveat as update - see the note there. */
   remove: (bulletinPostId: number) =>
     authedRequest<void>(`/api/bulletin-posts/${bulletinPostId}`, { method: 'DELETE' }),
 }
