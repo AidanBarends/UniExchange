@@ -1,14 +1,8 @@
 /*
-  Campus bulletin board.
-
-  OWNER: Aidan Barends (230255639) - previously unassigned.
+  Campus bulletin board. OWNER: unassigned
 
   GET is public. Reminder: you send `isFacultyAnnouncement` but read back
   `facultyAnnouncement`.
-
-  update/remove now require auth and are ownership-checked server-side
-  (BulletinPostController returns 403 for a non-author) - see
-  BulletinPostController.java.
 */
 
 import { authedRequest, request } from './client'
@@ -25,9 +19,6 @@ export const bulletinApi = {
 
   byAuthor: (authorId: number) => request<BulletinPost[]>(`/api/bulletin-posts/author/${authorId}`),
 
-  /** GET /api/bulletin-posts/category/:category - the path variable binds
-   * directly to the BulletinPostCategory enum on the backend, so it must be
-   * one of the exact enum names (e.g. "EVENT"), not a display label. */
   byCategory: (category: BulletinPostCategory) =>
     request<BulletinPost[]>(`/api/bulletin-posts/category/${category}`),
 
@@ -40,11 +31,6 @@ export const bulletinApi = {
     category: BulletinPostCategory
   }) => authedRequest<BulletinPost>('/api/bulletin-posts', { method: 'POST', body }),
 
-  /**
-   * PUT replaces the whole post - authorId/status/isFacultyAnnouncement have
-   * to be sent again even when only title/content changed, since
-   * BulletinPostRequest has no partial-update variant.
-   */
   update: (
     bulletinPostId: number,
     body: {

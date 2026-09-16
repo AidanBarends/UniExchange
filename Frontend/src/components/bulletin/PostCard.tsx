@@ -1,22 +1,3 @@
-/*
-  A single bulletin post - avatar/name/time/badge, then either the post's
-  content or (if you're editing) the composer form in its place.
-
-  Replaces the earlier PostActions.tsx, which appended the edit form BELOW
-  the static title/content instead of swapping it out - so clicking Edit
-  showed the old text and the edit form stacked together. This owns the
-  editing/confirmingDelete state itself so the swap is a genuine swap, not an
-  addition.
-
-  Hiding Edit/Delete for non-owners (see isOwner in BulletinPage) is still
-  just a UI nicety - BulletinPostController's PUT/DELETE now also reject a
-  non-author server-side (403), so this isn't the only thing standing in the
-  way, just the thing that keeps a non-owner from seeing controls that would
-  fail anyway.
-
-  Owner: Aidan Barends (230255639), for /bulletin only.
-*/
-
 import { useState } from 'react'
 
 import { CATEGORY_LABELS } from '@/components/bulletin/categoryLabels'
@@ -50,8 +31,6 @@ export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave
         <p className="text-xs text-ink-500">{formatRelativeTime(post.createdAt)}</p>
       </div>
       <div className="flex gap-1.5">
-        {/* GENERAL isn't shown - it's the "no specific category" default,
-            not something worth a badge on every ordinary post. */}
         {post.category !== 'GENERAL' && <Badge tone="neutral">{CATEGORY_LABELS[post.category]}</Badge>}
         {post.facultyAnnouncement && <Badge tone="brand">Announcement</Badge>}
       </div>

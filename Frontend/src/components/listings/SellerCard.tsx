@@ -1,30 +1,3 @@
-/*
-  Who is selling this, and a way to reach them.
-
-  Rating comes from usersApi.averageRating(), which returns 0 for a seller
-  with no reviews yet (ReviewServiceImpl.averageRatingForUser defaults an
-  empty stream to 0.0) - that's shown as "No ratings yet" rather than "0.0
-  stars", since a bare 0 reads as a bad rating rather than an absent one.
-
-  The mockup shows a "UCT Campus Resident" tagline and a green online-status
-  dot next to the seller's name - neither exists in the backend (User has no
-  online-status field, and there's no residency concept anywhere), so
-  they're left out. The "Trusted Seller" checkmark IS real: it comes from
-  GET /api/trusted-seller-badges/user/:id, a genuine badge system that just
-  hadn't been wired into any page yet.
-
-  "Message seller" does not create a conversation - messages.ts is unowned,
-  and building that flow solo risks duplicating whoever picks up messaging.
-  The button just hands off to /messages for now.
-
-  "Share" is client-side only (Web Share API, falling back to clipboard) -
-  no backend involved, so no honesty concerns there. The mockup's separate
-  "Save/Favorite" button is skipped entirely: there's no favorites/wishlist
-  entity anywhere in the backend to back it.
-
-  Owner: Aidan Barends (230255639), for /listings/:listingId only.
-*/
-
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -36,12 +9,9 @@ import type { User } from '@/lib/api/types'
 type SellerCardProps = {
   seller: User | null
   loading: boolean
-  /** Number of reviews backing `rating`, so 0 reviews reads differently from a genuine 0.0 average. */
   reviewCount: number | null
   rating: number | null
-  /** Null while loading/unknown, so the checkmark doesn't flash in incorrectly before we know. */
   trusted: boolean | null
-  /** Hidden entirely when the viewer is the seller - you don't message yourself. */
   showMessageAction: boolean
   onMessage: () => void
   onShare: () => Promise<'shared' | 'copied' | 'cancelled'>

@@ -1,22 +1,3 @@
-/*
-  Actions available only to the listing's own seller.
-
-  No "Edit" button here on purpose: the backend supports PUT /api/listings/:id
-  (listingsApi.update), but there is no edit route in the frontend yet -
-  /listings/new (Wazeer's page) is create-only. Wiring an edit form is out of
-  scope for the details page and would mean inventing UI he owns.
-
-  IMPORTANT: the backend does NOT check that the caller is actually the
-  seller on PATCH .../sold or DELETE - ListingController/ListingServiceImpl
-  accept the request from any authenticated user, not just the owner. Hiding
-  these buttons for non-owners (see isOwner in ListingDetailsPage) is a UI
-  decision, not enforcement - anyone could still call the API directly. The
-  real fix needs a server-side ownership check; that's shared backend code,
-  not something to change unilaterally from this page.
-
-  Owner: Aidan Barends (230255639), for /listings/:listingId only.
-*/
-
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/Button'

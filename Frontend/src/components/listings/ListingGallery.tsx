@@ -1,19 +1,3 @@
-/*
-  Hero image + thumbnail strip for a listing.
-
-  Images come from listingsApi.imagesFor(), already ordered by position on the
-  backend (findByListingIdOrderByPositionAsc), so this trusts that order and
-  only re-picks the one flagged `primary` to open on.
-
-  Matches the team's Product Details mockup: up to VISIBLE_THUMBNAILS shown
-  normally, the rest collapsed behind a "+N" tile that expands the strip when
-  tapped (mockup shows a static "+3" - this makes it functional instead of
-  decorative, since collapsing photos with no way to reach them would be
-  worse than not collapsing at all).
-
-  Owner: Aidan Barends (230255639), for /listings/:listingId only.
-*/
-
 import { useState } from 'react'
 
 import type { ListingImage } from '@/lib/api/types'
@@ -22,7 +6,6 @@ const VISIBLE_THUMBNAILS = 2
 
 type ListingGalleryProps = {
   images: ListingImage[]
-  /** Used for alt text; there is no per-image caption in the domain. */
   title: string
 }
 

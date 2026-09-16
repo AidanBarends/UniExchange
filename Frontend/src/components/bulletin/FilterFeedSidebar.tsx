@@ -1,20 +1,3 @@
-/*
-  "Filter Feed" panel from the mockup - now backed by the real
-  BulletinPostCategory field and GET /api/bulletin-posts/category/:category.
-
-  Behaves like a single-select even though it's drawn as checkboxes, matching
-  the mockup's visual style: choosing a specific category deselects "All
-  Posts", and choosing "All Posts" clears back to everything. There's no
-  backend support for selecting MULTIPLE categories at once, so this doesn't
-  pretend to offer that.
-
-  Trending Tags stays the disabled "Coming soon" mock from before - there is
-  still no tags entity anywhere in the backend, unrelated to this category
-  work.
-
-  Owner: Aidan Barends (230255639), for /bulletin only.
-*/
-
 import { CATEGORY_LABELS, FILTERABLE_CATEGORIES } from '@/components/bulletin/categoryLabels'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -23,7 +6,6 @@ import type { BulletinPostCategory } from '@/lib/api/types'
 const COMING_SOON_TAGS = ['#campus', '#midterms', '#textbookexchange', '#roomkeys']
 
 type FilterFeedSidebarProps = {
-  /** null means "All Posts" - no filter applied. */
   selected: BulletinPostCategory | null
   onSelect: (category: BulletinPostCategory | null) => void
 }

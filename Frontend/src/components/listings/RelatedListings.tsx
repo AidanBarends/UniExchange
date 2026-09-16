@@ -1,24 +1,3 @@
-/*
-  "More like this" - a row of other listings in the same category on the same
-  campus, shown at the bottom of the Product Details page.
-
-  How "related" is decided: same categoryId AND same campusId, current listing
-  excluded, only ACTIVE ones kept. That's the honest limit of what the backend
-  offers - there's no recommendation endpoint, no tag/keyword similarity, no
-  "people also viewed". GET /api/listings/search takes campusId + categoryId
-  and nothing finer, so this is a category shelf, not a real recommender, and
-  it's labelled as plain "More like this" rather than implying anything smarter.
-
-  Thumbnails need a second call each (GET /api/listing-images/listing/:id) -
-  there's no image on the Listing payload itself. Capped at MAX_RELATED so
-  that's at most a handful of small requests.
-
-  Renders nothing at all when there are no matches, so the page doesn't grow an
-  empty "More like this" heading.
-
-  Owner: Aidan Barends (230255639), for /listings/:listingId only.
-*/
-
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -31,7 +10,6 @@ const MAX_RELATED = 6
 const currencyFormatter = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' })
 
 type RelatedListingsProps = {
-  /** The listing being viewed - excluded from its own "more like this" row. */
   currentListingId: number
   categoryId: number
   campusId: number
@@ -56,8 +34,6 @@ export function RelatedListings({ currentListingId, categoryId, campusId }: Rela
       try {
         matches = await listingsApi.search({ campusId, categoryId })
       } catch {
-        // A failed shelf is not worth an error banner on an otherwise-fine
-        // page - just render nothing.
         if (!cancelled) setState({ status: 'done', items: [] })
         return
       }

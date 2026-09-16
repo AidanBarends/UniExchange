@@ -1,25 +1,3 @@
-/*
-  Write (or edit) a bulletin post.
-
-  There's no per-field backend validation error for this endpoint (see the
-  comment on bulletinPostSchema in src/lib/schemas.ts) - client-side zod
-  validation is what actually stops a blank post from being submitted. Any
-  backend-side failure surfaces as one general message via onError, not a
-  field-level one.
-
-  New posts always go out as status: 'PUBLISHED' and isFacultyAnnouncement:
-  false - a regular student has no business creating a faculty announcement,
-  and there is no moderation/HIDDEN workflow built anywhere for this page to
-  hook into. Editing preserves whatever status/isFacultyAnnouncement the post
-  already had (see PostCard.tsx), since this form never changes either.
-
-  The Photo/Event icon row (new-post mode only) is disabled UI matching the
-  mockup - MOCK, not backend-connected. There's no image attachment or
-  event-specific fields on BulletinPost to back them yet.
-
-  Owner: Aidan Barends (230255639), for /bulletin only.
-*/
-
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
@@ -35,10 +13,8 @@ import { bulletinPostSchema } from '@/lib/schemas'
 
 type PostComposerProps = {
   onSubmit: (values: BulletinPostValues) => Promise<void>
-  /** Pre-fills the form for editing an existing post. Omitted for a new post. */
   initialValues?: BulletinPostValues
   submitLabel?: string
-  /** Shows a Cancel button next to submit - only relevant when editing. */
   onCancel?: () => void
 }
 
@@ -56,20 +32,14 @@ export function PostComposer({
     formState: { errors, isSubmitting },
   } = useForm<BulletinPostValues>({
     resolver: zodResolver(bulletinPostSchema),
-    // A new post needs a starting category too, or the picker would fall
-    // back to whichever <option> happens to render first with no explicit
-    // choice made.
     defaultValues: initialValues ?? { category: 'GENERAL' },
   })
 
   const submit = handleSubmit(async (values) => {
     try {
       await onSubmit(values)
-      if (!initialValues) reset() // clear the composer after a new post; leave edited text as-is
+      if (!initialValues) reset()
     } catch {
-      // The parent (BulletinPage) already knows the specific error message;
-      // this form only needs to know something went wrong so it can show a
-      // generic fallback without duplicating error-formatting logic.
       setError('root', { message: "Couldn't post that. Please try again." })
     }
   })
@@ -103,10 +73,6 @@ export function PostComposer({
         />
 
         {!initialValues && (
-          // Matches the mockup's Photo/Event icon row, but there is no image
-          // attachment or event-specific fields on BulletinPost to back
-          // these - disabled with a visible "Coming soon" title rather than
-          // buttons that look real but silently do nothing when clicked.
           <div className="flex gap-3 text-ink-400">
             <button
               type="button"

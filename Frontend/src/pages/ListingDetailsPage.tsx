@@ -4,14 +4,6 @@
   OWNER: Aidan Barends (230255639)
   ROUTE: /listings/:listingId
 
-  Restyled to match the team's Product Details mockup. A few things in that
-  mockup don't have backend support and are deliberately left out rather than
-  faked - see the comments in SellerCard.tsx and ListingGallery.tsx for the
-  specifics (condition badge, discounted price, favorites, seller
-  online-status, a real map). The "Location" section here is a text card
-  (campus name + city), not a map with a pin, since Campus has no
-  coordinates.
-
   NOTE: images come back with `primary`, not `isPrimary` - see the comment at the
   top of src/lib/api/types.ts for why.
 
@@ -48,9 +40,6 @@ const STATUS_TONE: Record<ListingStatus, 'success' | 'neutral' | 'warning' | 'da
   DELETED: 'danger',
 }
 
-/** "Listed 2 hours ago" - matches the mockup's relative-time style. Falls back
- * to an absolute date once something is more than a week old, since "47 days
- * ago" is less useful than just reading the date at that point. */
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const diffMin = Math.floor(diffMs / 60_000)
@@ -67,11 +56,6 @@ function formatRelativeTime(iso: string): string {
   return absoluteDateFormatter.format(new Date(iso))
 }
 
-// Not exposed by usersApi.ts (users.ts is Raul's file, not touched here) -
-// just the one field this page actually needs from a real endpoint:
-// GET /api/trusted-seller-badges/user/:id, 404 when the seller has none.
-// findByUserId on the backend does NOT filter out revoked badges, so
-// revokedAt has to be checked here rather than trusting a 200 alone.
 type TrustedSellerBadgeResponse = { revokedAt: string | null }
 
 type LoadState =
@@ -102,8 +86,6 @@ export function ListingDetailsPage() {
     setState({ status: 'loading' })
     setActionError(null)
 
-    // Reset supporting detail from any previously-loaded listing so a
-    // direct navigation between two listings never flashes stale data.
     setCategory(null)
     setCampus(null)
     setImages([])
@@ -130,9 +112,6 @@ export function ListingDetailsPage() {
 
     setState({ status: 'ready', listing })
 
-    // Everything below is supporting detail - if one of these fails, the
-    // page still shows the listing itself rather than falling back to an
-    // error, it just shows that one field blank.
     void listingsApi
       .categoryById(listing.categoryId)
       .then(setCategory)
@@ -229,14 +208,6 @@ export function ListingDetailsPage() {
   const { listing } = state
   const isOwner = user?.userId === listing.sellerId
 
-  // Belt-and-suspenders: the buttons that call these are only rendered for
-  // isOwner already, but that's a UI decision, not enforcement - the backend
-  // currently accepts PATCH .../sold and DELETE from ANY authenticated user,
-  // not just the seller (ListingController/ListingServiceImpl do not check
-  // sellerId against the caller). Refusing here client-side closes nothing on
-  // its own - anyone can still call the API directly - but it stops this
-  // page from being the thing that fires an unauthorized request. The real
-  // fix has to be a server-side ownership check.
   const handleMarkSold = async () => {
     if (!isOwner) {
       setActionError('Only the seller can mark this listing as sold.')
@@ -270,8 +241,6 @@ export function ListingDetailsPage() {
         await navigator.share({ title: listing.title, url })
         return 'shared'
       } catch {
-        // AbortError when the user just closes the native share sheet - not
-        // an error worth surfacing.
         return 'cancelled'
       }
     }

@@ -1,29 +1,3 @@
-/*
-  "Campus News" sidebar from the mockup - real data, not a fabricated
-  section: GET /api/bulletin-posts/announcements returns exactly the
-  isFacultyAnnouncement posts this sidebar needs.
-
-  This is a second, independent fetch of the same underlying posts already
-  pinned to the top of the main feed (BulletinPage sorts facultyAnnouncement
-  posts first). That duplication is intentional, not a bug - it matches the
-  mockup's layout, where announcements get a persistent side panel as well as
-  being highlighted inline.
-
-  The mockup tags one item "IMPORTANT" and leaves others plain, implying a
-  priority/severity distinction - there's no such field on BulletinPost, so
-  every item here is equally "a faculty announcement" by definition. Rather
-  than invent which ones look more urgent, every item gets the same real
-  "Announcement" badge (true for all of them) plus a left accent border for
-  visual weight, instead of a fake one-off "IMPORTANT" tag.
-
-  Deliberately skipped from the mockup: the "Quick Links" panel underneath
-  Campus News (Community Guidelines / Help Center / Contact Admin) - none of
-  those routes exist anywhere in the app yet, and linking to pages that
-  don't exist is worse than not having the panel.
-
-  Owner: Aidan Barends (230255639), for /bulletin only.
-*/
-
 import { useEffect, useState } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
