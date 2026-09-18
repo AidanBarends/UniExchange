@@ -7,6 +7,6 @@ export const CATEGORY_LABELS: Record<BulletinPostCategory, string> = {
   LOST_AND_FOUND: 'Lost & Found',
 }
 
-export const FILTERABLE_CATEGORIES: BulletinPostCategory[] = ['EVENT', 'STUDY_GROUP', 'LOST_AND_FOUND']
+export const FILTERABLE_CATEGORIES: BulletinPostCategory[] = ['GENERAL', 'EVENT', 'STUDY_GROUP', 'LOST_AND_FOUND']
 
 export const ALL_CATEGORIES: BulletinPostCategory[] = ['GENERAL', 'EVENT', 'STUDY_GROUP', 'LOST_AND_FOUND']
