@@ -12,13 +12,22 @@ import type { BulletinPostValues } from '@/lib/schemas'
 type PostCardProps = {
   post: BulletinPost
   authorName: string | null
+  imageUrl: string | null
   isOwner: boolean
   formatRelativeTime: (iso: string) => string
   onSave: (values: BulletinPostValues) => Promise<void>
   onDelete: () => Promise<void>
 }
 
-export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave, onDelete }: PostCardProps) {
+export function PostCard({
+  post,
+  authorName,
+  imageUrl,
+  isOwner,
+  formatRelativeTime,
+  onSave,
+  onDelete,
+}: PostCardProps) {
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -43,7 +52,12 @@ export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave
         {header}
         <div className="mt-3">
           <PostComposer
-            initialValues={{ title: post.title, content: post.content, category: post.category }}
+            initialValues={{
+              title: post.title,
+              content: post.content,
+              category: post.category,
+              imageUrl: imageUrl ?? '',
+            }}
             submitLabel="Save"
             onCancel={() => setEditing(false)}
             onSubmit={async (values) => {
@@ -62,6 +76,17 @@ export function PostCard({ post, authorName, isOwner, formatRelativeTime, onSave
 
       <h2 className="mt-3 text-sm font-semibold text-ink-900">{post.title}</h2>
       <p className="mt-1 whitespace-pre-wrap text-sm text-ink-700">{post.content}</p>
+
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt=""
+          className="mt-3 max-h-96 w-full rounded-lg border border-gray-200 object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none'
+          }}
+        />
+      )}
 
       {isOwner && (
         <div className="mt-3 flex gap-2">
