@@ -160,3 +160,12 @@ export type BulletinPost = {
   updatedAt: string
   removedAt: string | null
 }
+
+export type BulletinPostImage = {
+  imageId: number
+  bulletinPostId: number
+  imageUrl: string
+  position: number
+  /** Sent as `isPrimary`, received as `primary` - see the note at the top. */
+  primary: boolean
+}
