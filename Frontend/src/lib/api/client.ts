@@ -131,6 +131,44 @@ export function authedRequest<T>(
   return request<T>(path, { ...options, token: currentToken() })
 }
 
+/**
+ * Uploads a file as multipart/form-data with the current session's bearer
+ * token. Deliberately separate from authedRequest: that one always JSON-
+ * encodes the body, but a browser must set its own multipart boundary in
+ * Content-Type, which it only does when it builds that header itself - so
+ * this sends FormData and sets no Content-Type at all.
+ */
+export async function authedUpload<T>(path: string, file: File): Promise<T> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const token = currentToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let response: Response
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: formData })
+  } catch {
+    throw new ApiError(0, 'Cannot reach the UniExchange server. Is the backend running?')
+  }
+
+  const raw = await response.text()
+  const payload: unknown = raw ? safeJson(raw) : null
+
+  if (!response.ok) {
+    const envelope = (payload ?? {}) as ErrorEnvelope
+    throw new ApiError(
+      response.status,
+      envelope.message ?? fallbackMessage(response.status),
+      envelope.fields ?? {},
+      envelope.code,
+    )
+  }
+
+  return payload as T
+}
+
 function buildQuery(query: RequestOptions['query']): string {
   if (!query) return ''
 
