@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/components/bulletin/categoryLabels'
@@ -9,8 +9,12 @@ import { Card } from '@/components/ui/Card'
 import { Select } from '@/components/ui/Select'
 import { TextField } from '@/components/ui/TextField'
 import { Textarea } from '@/components/ui/Textarea'
+import { ApiError } from '@/lib/api/client'
+import { uploadsApi } from '@/lib/api/uploads'
 import type { BulletinPostValues } from '@/lib/schemas'
 import { bulletinPostSchema } from '@/lib/schemas'
+
+const ACCEPTED_IMAGE_TYPES = 'image/png,image/jpeg,image/gif,image/webp'
 
 type PostComposerProps = {
   onSubmit: (values: BulletinPostValues) => Promise<void>
@@ -31,12 +35,18 @@ export function PostComposer({
     reset,
     setError,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<BulletinPostValues>({
     resolver: zodResolver(bulletinPostSchema),
     defaultValues: initialValues ?? { category: 'GENERAL' },
   })
   const [showPhotoInput, setShowPhotoInput] = useState(Boolean(initialValues?.imageUrl))
+  const [photoMode, setPhotoMode] = useState<'upload' | 'url'>(initialValues?.imageUrl ? 'url' : 'upload')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageUrl = watch('imageUrl')
 
   const submit = handleSubmit(async (values) => {
     try {
@@ -44,11 +54,29 @@ export function PostComposer({
       if (!initialValues) {
         reset()
         setShowPhotoInput(false)
+        setPhotoMode('upload')
       }
     } catch {
       setError('root', { message: "Couldn't post that. Please try again." })
     }
   })
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const { url } = await uploadsApi.image(file)
+      setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })
+    } catch (error) {
+      setUploadError(error instanceof ApiError ? error.message : 'Could not upload that image.')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <Card>
@@ -79,12 +107,63 @@ export function PostComposer({
         />
 
         {showPhotoInput && (
-          <TextField
-            label="Image URL"
-            placeholder="https://..."
-            error={errors.imageUrl?.message}
-            {...register('imageUrl')}
-          />
+          <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPhotoMode('upload')}
+                aria-pressed={photoMode === 'upload'}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  photoMode === 'upload' ? 'bg-brand-50 text-brand-700' : 'text-ink-500 hover:bg-gray-100'
+                }`}
+              >
+                Upload a photo
+              </button>
+              <button
+                type="button"
+                onClick={() => setPhotoMode('url')}
+                aria-pressed={photoMode === 'url'}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                  photoMode === 'url' ? 'bg-brand-50 text-brand-700' : 'text-ink-500 hover:bg-gray-100'
+                }`}
+              >
+                Paste a link
+              </button>
+            </div>
+
+            {photoMode === 'upload' ? (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="!w-auto"
+                  loading={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {imageUrl ? 'Choose a different photo' : 'Choose a photo'}
+                </Button>
+                {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+              </div>
+            ) : (
+              <TextField
+                label="Image URL"
+                placeholder="https://..."
+                error={errors.imageUrl?.message}
+                {...register('imageUrl')}
+              />
+            )}
+
+            {imageUrl && (
+              <img src={imageUrl} alt="" className="h-24 rounded-md border border-gray-200 object-cover" />
+            )}
+          </div>
         )}
 
         <div className="flex gap-3 text-ink-500">
@@ -92,7 +171,11 @@ export function PostComposer({
             type="button"
             onClick={() =>
               setShowPhotoInput((shown) => {
-                if (shown) setValue('imageUrl', '')
+                if (shown) {
+                  setValue('imageUrl', '')
+                  setUploadError(null)
+                  setPhotoMode('upload')
+                }
                 return !shown
               })
             }
