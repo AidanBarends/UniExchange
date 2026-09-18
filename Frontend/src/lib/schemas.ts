@@ -75,6 +75,7 @@ export const bulletinPostSchema = z.object({
   title: z.string().trim().min(1, 'Enter a title').max(150, 'Keep it under 150 characters'),
   content: z.string().trim().min(1, "Enter what's happening"),
   category: z.enum(['GENERAL', 'EVENT', 'STUDY_GROUP', 'LOST_AND_FOUND']),
+  imageUrl: z.union([z.string().trim().url('Enter a valid image URL'), z.literal('')]).optional(),
 })
 
 export type SignUpValues = z.infer<typeof signUpSchema>
