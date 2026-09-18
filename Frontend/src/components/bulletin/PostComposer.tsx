@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { ALL_CATEGORIES, CATEGORY_LABELS } from '@/components/bulletin/categoryLabels'
@@ -29,16 +30,21 @@ export function PostComposer({
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BulletinPostValues>({
     resolver: zodResolver(bulletinPostSchema),
     defaultValues: initialValues ?? { category: 'GENERAL' },
   })
+  const [showPhotoInput, setShowPhotoInput] = useState(Boolean(initialValues?.imageUrl))
 
   const submit = handleSubmit(async (values) => {
     try {
       await onSubmit(values)
-      if (!initialValues) reset()
+      if (!initialValues) {
+        reset()
+        setShowPhotoInput(false)
+      }
     } catch {
       setError('root', { message: "Couldn't post that. Please try again." })
     }
@@ -72,28 +78,40 @@ export function PostComposer({
           {...register('content')}
         />
 
-        {!initialValues && (
-          <div className="flex gap-3 text-ink-400">
-            <button
-              type="button"
-              disabled
-              title="Coming soon"
-              className="flex cursor-not-allowed items-center gap-1.5 text-xs"
-            >
-              <PhotoIcon className="size-4" />
-              Photo
-            </button>
-            <button
-              type="button"
-              disabled
-              title="Coming soon"
-              className="flex cursor-not-allowed items-center gap-1.5 text-xs"
-            >
-              <EventIcon className="size-4" />
-              Event
-            </button>
-          </div>
+        {showPhotoInput && (
+          <TextField
+            label="Image URL"
+            placeholder="https://..."
+            error={errors.imageUrl?.message}
+            {...register('imageUrl')}
+          />
         )}
+
+        <div className="flex gap-3 text-ink-500">
+          <button
+            type="button"
+            onClick={() =>
+              setShowPhotoInput((shown) => {
+                if (shown) setValue('imageUrl', '')
+                return !shown
+              })
+            }
+            aria-pressed={showPhotoInput}
+            className="flex items-center gap-1.5 text-xs hover:text-ink-700"
+          >
+            <PhotoIcon className="size-4" />
+            {showPhotoInput ? 'Remove photo' : 'Photo'}
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Coming soon"
+            className="flex cursor-not-allowed items-center gap-1.5 text-xs text-ink-400"
+          >
+            <EventIcon className="size-4" />
+            Event
+          </button>
+        </div>
 
         <div className="flex justify-end gap-2">
           {onCancel && (
