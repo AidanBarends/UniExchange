@@ -20,7 +20,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
 import { bulletinApi } from '@/lib/api/bulletin'
 import { ApiError } from '@/lib/api/client'
-import type { BulletinPost, BulletinPostCategory, User } from '@/lib/api/types'
+import type { BulletinPost, BulletinPostCategory, BulletinPostImage, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 import type { BulletinPostValues } from '@/lib/schemas'
 
@@ -55,6 +55,7 @@ export function BulletinPage() {
   const { user } = useAuth()
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [authors, setAuthors] = useState<Map<number, User>>(new Map())
+  const [postImages, setPostImages] = useState<Map<number, BulletinPostImage>>(new Map())
   const [actionError, setActionError] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<BulletinPostCategory | null>(null)
 
@@ -86,6 +87,19 @@ export function BulletinPage() {
         return next
       })
     })
+
+    void Promise.all(
+      published.map((post) => bulletinApi.imagesFor(post.bulletinPostId).catch(() => [])),
+    ).then((imageLists) => {
+      setPostImages((previous) => {
+        const next = new Map(previous)
+        imageLists.forEach((images, index) => {
+          const primary = images.find((image) => image.primary) ?? images[0]
+          if (primary) next.set(published[index].bulletinPostId, primary)
+        })
+        return next
+      })
+    })
   }, [])
 
   useEffect(() => {
@@ -112,6 +126,16 @@ export function BulletinPage() {
     }
 
     setAuthors((previous) => new Map(previous).set(user.userId, user))
+
+    if (values.imageUrl) {
+      const image = await bulletinApi.addImage({
+        bulletinPostId: created.bulletinPostId,
+        imageUrl: values.imageUrl,
+        position: 0,
+        isPrimary: true,
+      })
+      setPostImages((previous) => new Map(previous).set(created.bulletinPostId, image))
+    }
   }
 
   const handleUpdatePost = async (post: BulletinPost, values: BulletinPostValues) => {
@@ -143,6 +167,31 @@ export function BulletinPage() {
         posts: sortPosts(previous.posts.map((p) => (p.bulletinPostId === updated.bulletinPostId ? updated : p))),
       }
     })
+
+    const existingImage = postImages.get(updated.bulletinPostId)
+    if (values.imageUrl) {
+      const image = existingImage
+        ? await bulletinApi.updateImage(existingImage.imageId, {
+            bulletinPostId: updated.bulletinPostId,
+            imageUrl: values.imageUrl,
+            position: 0,
+            isPrimary: true,
+          })
+        : await bulletinApi.addImage({
+            bulletinPostId: updated.bulletinPostId,
+            imageUrl: values.imageUrl,
+            position: 0,
+            isPrimary: true,
+          })
+      setPostImages((previous) => new Map(previous).set(updated.bulletinPostId, image))
+    } else if (existingImage) {
+      await bulletinApi.removeImage(existingImage.imageId)
+      setPostImages((previous) => {
+        const next = new Map(previous)
+        next.delete(updated.bulletinPostId)
+        return next
+      })
+    }
   }
 
   const handleDeletePost = async (post: BulletinPost) => {
@@ -211,12 +260,14 @@ export function BulletinPage() {
               const author = authors.get(post.authorId)
               const authorName = author ? `${author.firstName} ${author.lastName}` : null
               const isOwner = user?.userId === post.authorId
+              const imageUrl = postImages.get(post.bulletinPostId)?.imageUrl ?? null
 
               return (
                 <PostCard
                   key={post.bulletinPostId}
                   post={post}
                   authorName={authorName}
+                  imageUrl={imageUrl}
                   isOwner={isOwner}
                   formatRelativeTime={formatRelativeTime}
                   onSave={(values) => handleUpdatePost(post, values)}
