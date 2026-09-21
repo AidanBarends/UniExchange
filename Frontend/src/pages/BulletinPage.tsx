@@ -1,7 +1,25 @@
 /*
   Campus bulletin board.
 
+  OWNER: Aidan Barends (230255639)
   ROUTE: /bulletin
+
+  IMPORTANT - the team's mockup for this page still shows more than the
+  backend supports: NO likes entity, NO comments entity, NO tags entity.
+  What IS real: BulletinPost has a category field (see BulletinPostCategory
+  in types.ts) - Filter Feed, the composer's category picker, and each
+  post's category badge are all wired to it. Posts can also carry one real
+  photo (BulletinPostImage), added either by pasting a URL or uploading a
+  file through UploadController - see PostComposer's Photo toggle and this
+  page's postImages map. None of the rest (likes/comments/tags) is built.
+
+  NOTE: you POST `isFacultyAnnouncement` but the response comes back as
+  `facultyAnnouncement` (Jackson strips the `is` prefix on boolean getters) -
+  see the comment in src/lib/api/types.ts.
+
+  status is PUBLISHED | HIDDEN | REMOVED - the backend returns all of them
+  from both GET /api/bulletin-posts and GET .../category/:category, so
+  PUBLISHED-only filtering happens here either way.
 
   Your own components go in src/components/bulletin/.
 */
