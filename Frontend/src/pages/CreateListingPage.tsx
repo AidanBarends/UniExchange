@@ -1,24 +1,7 @@
 /*
-  Post something for sale.
 
   OWNER: Mogamat Wazeer Gilbert (221374698)
   ROUTE: /listings/new
-
-  TODO
-   - listingsApi.categories()                  GET /api/categories
-   - listingsApi.create({ sellerId, categoryId, campusId, title, description,
-                          price, status: 'ACTIVE' })
-                                               POST /api/listings
-   - sellerId and campusId both come from useAuth().user - do not ask the user
-   - listingsApi.addImage({ listingId, imageUrl, position, isPrimary })
-     POST /api/listing-images. There is NO file upload on the backend: it stores
-     a URL string, so take a URL for now
-   - on success: navigate(`/listings/${created.listingId}`)
-   - build the form with react-hook-form + zod, exactly like SignUpPage does.
-     Put the schema in src/lib/schemas.ts next to signUpSchema
-   - the backend factory rejects a blank title and a negative price with 400 and
-     a `fields` map - surface those the way SignUpPage does
-   - reuse: PageHeader, TextField, Textarea, Select, Button, Alert
 
 */
 
@@ -27,7 +10,9 @@ import {useNavigate} from 'react-router-dom'
 import {useForm} from 'react-hook-form'
 import {zodResolver} from "@hookform/resolvers/zod";
 import {useAuth} from '@/auth/useAuth';
+import {authApi} from "@/lib/api/auth";
 import {listingsApi} from "@/lib/api/listings";
+import type {Campus} from "@/lib/api/types";
 import {createListingSchema} from '@/lib/schemas';
 import type { CreateListingFormData } from '@/lib/schemas';
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -43,12 +28,41 @@ interface CategoryOption {
     name: string;
 }
 
+const DEFAULT_CATEGORIES = [
+    'Electronics',
+    'Textbooks',
+    'Clothes',
+    'Furniture',
+    'Stationery',
+    'Sports & Fitness',
+    'Household Items',
+    'Other',
+] as const;
+
+const CAMPUS_NAMES = [
+    'Bellville Campus',
+    'Granger Bay Campus',
+    'Mowbray Campus',
+    'Wellington Campus',
+    'District Six campus',
+] as const;
+
+const DEFAULT_CAMPUSES: Campus[] = CAMPUS_NAMES.map((name, index) => ({
+    campusId: index + 1,
+    name,
+    city: '',
+    address: null,
+}));
+
 export const CreateListingPage: React.FC = () => {
     const navigate = useNavigate();
     const {user} = useAuth();
 
     const [categories, setCategories] = useState<CategoryOption[]>([]);
+    const [campuses, setCampuses] = useState<Campus[]>([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+    const [isLoadingCampuses, setIsLoadingCampuses] = useState(true);
+    const [imageFile, setImageFile] = useState<File | null>(null);
     const [rootError, setRootError] = useState<string | null>(null);
 
     const {
@@ -56,26 +70,63 @@ export const CreateListingPage: React.FC = () => {
         handleSubmit,
         setError,
         formState: {errors, isSubmitting},
-    } = useForm({
+    } = useForm<CreateListingFormData>({
         resolver: zodResolver(createListingSchema),
         defaultValues: {
             title: '',
             categoryId: '',
+            campusId: '',
             price: '',
             description: '',
-            imageUrl: '',
         },
     });
 
     useEffect(() => {
         let mounted = true;
 
-        async function fetchCategories() {
+        async function fetchFormOptions() {
             try {
                 setIsLoadingCategories(true);
-                const data = await listingsApi.categories()
+                setIsLoadingCampuses(true);
+                const [categoryData, campusData] = await Promise.all([
+                    listingsApi.categories(),
+                    authApi.campuses(),
+                ]);
                 if (mounted) {
-                    setCategories(data || []);
+                    const availableCategories = categoryData || [];
+                    const categoriesByName = new Map(
+                        availableCategories.map((category) => [category.name.trim().toLowerCase(), category]),
+                    );
+                    const defaultCategories = DEFAULT_CATEGORIES.map((name, index) =>
+                        categoriesByName.get(name.toLowerCase()) ?? {
+                            categoryId: index + 1,
+                            name,
+                        },
+                    );
+                    const additionalCategories = availableCategories.filter(
+                        (category) => !DEFAULT_CATEGORIES.some(
+                            (name) => name.toLowerCase() === category.name.trim().toLowerCase(),
+                        ),
+                    );
+                    setCategories([...defaultCategories, ...additionalCategories]);
+                    const availableCampuses = campusData || [];
+                    const campusesByName = new Map(
+                        availableCampuses.flatMap((campus) => [
+                            [campus.name.trim().toLowerCase(), campus],
+                            [`${campus.name.trim().toLowerCase()} campus`, campus],
+                        ]),
+                    );
+                    const defaultCampuses = DEFAULT_CAMPUSES.map((campus) =>
+                        campusesByName.get(campus.name.toLowerCase()) ??
+                        campusesByName.get(campus.name.replace(/ campus$/i, '').toLowerCase()) ??
+                        campus,
+                    );
+                    const additionalCampuses = availableCampuses.filter(
+                        (campus) => !defaultCampuses.some(
+                            (defaultCampus) => defaultCampus.campusId === campus.campusId,
+                        ),
+                    );
+                    setCampuses([...defaultCampuses, ...additionalCampuses]);
                 }
             } catch (err: unknown) {
                 if (mounted) {
@@ -85,11 +136,12 @@ export const CreateListingPage: React.FC = () => {
             } finally {
                 if (mounted) {
                     setIsLoadingCategories(false);
+                    setIsLoadingCampuses(false);
                 }
             }
         }
 
-        fetchCategories();
+        fetchFormOptions();
 
         return () => {
             mounted = false;
@@ -99,15 +151,31 @@ export const CreateListingPage: React.FC = () => {
     const onSubmit = async (data: CreateListingFormData) => {
         setRootError(null)
 
-        if (!user?.userId || !user?.campusId) {
-            setRootError('Your account must have a verified campus to create a listing!')
+        if (!user?.userId) {
+            setRootError('You must be signed in to create a listing.')
             return;
+        }
+
+        if (!imageFile) {
+            setRootError('Please choose an image from your device.')
+            return;
+        }
+
+        if (imageFile) {
+            if (!imageFile.type.startsWith('image/')) {
+                setRootError('Please select an image file.')
+                return;
+            }
+            if (imageFile.size > 10 * 1024 * 1024) {
+                setRootError('Image must be 10 MB or smaller.')
+                return;
+            }
         }
 
         try {
             const created = await listingsApi.create({
                 sellerId: Number(user.userId),
-                campusId: Number(user.campusId),
+                campusId: Number(data.campusId),
                 categoryId: Number(data.categoryId),
                 title: data.title.trim(),
                 description: data.description?.trim() || '',
@@ -115,16 +183,21 @@ export const CreateListingPage: React.FC = () => {
                 status: 'ACTIVE'
             });
 
-            if (data.imageUrl && data.imageUrl.trim() && created?.listingId) {
+            if (created?.listingId && imageFile) {
                 try {
-                    await listingsApi.addImage({
+                    await listingsApi.uploadImage({
                         listingId: Number(created.listingId),
-                        imageUrl: data.imageUrl.trim(),
+                        file: imageFile,
                         position: 1,
                         isPrimary: true,
                     });
                 } catch (imgError) {
-                    console.warn('Failed to add image to listing', imgError);
+                    const message = String(
+                        (imgError as { message?: unknown })?.message ??
+                        'The listing was created, but the image could not be saved.',
+                    );
+                    setRootError(`Listing created, but image upload failed: ${message}`);
+                    return;
                 }
             }
 
@@ -144,11 +217,26 @@ export const CreateListingPage: React.FC = () => {
                 }
             }
 
+            const apiMessage =
+                apiResponse && typeof apiResponse === 'object'
+                    ? (apiResponse as Record<string, unknown>)['message']
+                    : undefined;
             setRootError(
-                String((apiResponse as Record<string, unknown>)['message'] ?? (err as { message?: unknown })?.message ?? 'Failed to add listing')
+                String(apiMessage ?? (err as { message?: unknown })?.message ?? 'Failed to add listing')
             );
         }
     };
+
+    const campusOptions = campuses
+        .filter((campus) => CAMPUS_NAMES.includes(campus.name as typeof CAMPUS_NAMES[number]) ||
+            DEFAULT_CAMPUSES.some((defaultCampus) => defaultCampus.campusId === campus.campusId))
+        .map((campus) => ({
+            ...campus,
+            displayName: CAMPUS_NAMES.find((name) =>
+                name.toLowerCase() === campus.name.trim().toLowerCase() ||
+                name.replace(/ campus$/i, '').toLowerCase() === campus.name.trim().toLowerCase(),
+            ) ?? campus.name,
+        }));
 
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
@@ -182,6 +270,21 @@ export const CreateListingPage: React.FC = () => {
                             ))}
                         </Select>
 
+                        <Select
+                            label="Campus"
+                            error={errors.campusId?.message}
+                            disabled={isLoadingCampuses}
+                            {...register('campusId')}>
+                            <option value="">
+                                {isLoadingCampuses ? 'Loading campuses...' : 'Select a campus'}
+                            </option>
+                            {campusOptions.map((campus) => (
+                                <option key={campus.campusId} value={String(campus.campusId)}>
+                                    {campus.displayName}
+                                </option>
+                            ))}
+                        </Select>
+
                         <TextField label="Price (ZAR)"
                                    type="number"
                                    step="0.01"
@@ -198,11 +301,43 @@ export const CreateListingPage: React.FC = () => {
                               {...register('description')}
                     />
 
-                    <TextField label="Image URL"
-                               placeholder="https://example.com/item.jpg"
-                               error={errors.imageUrl?.message}
-                               {...register('imageUrl')}
-                    />
+                    <div className="space-y-1.5">
+                        <label htmlFor="imageFile" className="block text-sm font-medium text-ink-700">
+                            Upload image
+                        </label>
+                        <input
+                            id="imageFile"
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
+                            className="sr-only"
+                        />
+                        <label
+                            htmlFor="imageFile"
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-ink-700 hover:bg-gray-50"
+                        >
+                            <svg
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" />
+                                <path d="M3 8h18" />
+                            </svg>
+                            Choose file
+                        </label>
+                        {imageFile && (
+                            <span className="ml-3 text-sm text-ink-600">{imageFile.name}</span>
+                        )}
+                        <p className="text-xs text-ink-400">
+                            Choose a JPEG, PNG, GIF, or WebP image up to 10 MB. An image from your device is required.
+                        </p>
+                    </div>
 
                     <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                         <Button type="button"
@@ -211,7 +346,7 @@ export const CreateListingPage: React.FC = () => {
                                 disabled={isSubmitting}
                         >Cancel</Button>
                         <Button type="submit"
-                                disabled={isSubmitting || isLoadingCategories}>
+                                disabled={isSubmitting || isLoadingCategories || isLoadingCampuses}>
                             {isSubmitting ? 'Posting Listing...' : 'Post Listing'}
                         </Button>
                     </div>

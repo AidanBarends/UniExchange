@@ -65,4 +65,9 @@ public class ListingImageServiceImpl implements IListingImageService {
         return this.repository.findByListingIdAndIsPrimaryTrue(listingId).stream().findFirst().orElse(null);
     }
 
+    @Override
+    public ListingImage findByImageUrl(String imageUrl) {
+        return this.repository.findByImageUrl(imageUrl).orElse(null);
+    }
+
 }

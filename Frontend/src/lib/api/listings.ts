@@ -62,4 +62,21 @@ export const listingsApi = {
     position: number
     isPrimary: boolean
   }) => authedRequest<ListingImage>('/api/listing-images', { method: 'POST', body }),
+
+  uploadImage: (body: {
+    listingId: number
+    file: File
+    position: number
+    isPrimary: boolean
+  }) => {
+    const form = new FormData()
+    form.append('listingId', String(body.listingId))
+    form.append('position', String(body.position))
+    form.append('isPrimary', String(body.isPrimary))
+    form.append('file', body.file)
+    return authedRequest<ListingImage>('/api/listing-images/upload', {
+      method: 'POST',
+      body: form,
+    })
+  },
 }

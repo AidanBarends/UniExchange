@@ -10,11 +10,13 @@
 package za.ac.cput.domain.marketplace;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "listing_image")
@@ -36,6 +38,13 @@ public class ListingImage {
     @Column(nullable = false, name = "is_primary")
     private boolean isPrimary;
 
+    @Lob
+    @Column(name = "image_data", columnDefinition = "LONGBLOB")
+    private byte[] imageData;
+
+    @Column(name = "content_type", length = 100)
+    private String contentType;
+
     //  Constructors
     protected ListingImage() {
         // Required by JPA
@@ -47,6 +56,8 @@ public class ListingImage {
         this.imageUrl = builder.imageUrl;
         this.position = builder.position;
         this.isPrimary = builder.isPrimary;
+        this.imageData = builder.imageData;
+        this.contentType = builder.contentType;
     }
 
     //  Getters
@@ -70,6 +81,15 @@ public class ListingImage {
         return isPrimary;
     }
 
+    @JsonIgnore
+    public byte[] getImageData() {
+        return imageData;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
     //  toString
     @Override
     public String toString() {
@@ -91,6 +111,8 @@ public class ListingImage {
         private String imageUrl;
         private int position;
         private boolean isPrimary;
+        private byte[] imageData;
+        private String contentType;
 
         //  Setters
         public Builder setImageId(long imageId) {
@@ -118,12 +140,24 @@ public class ListingImage {
             return this;
         }
 
+        public Builder setImageData(byte[] imageData) {
+            this.imageData = imageData;
+            return this;
+        }
+
+        public Builder setContentType(String contentType) {
+            this.contentType = contentType;
+            return this;
+        }
+
         public Builder copy(ListingImage listingImage) {
             this.imageId = listingImage.imageId;
             this.listingId = listingImage.listingId;
             this.imageUrl = listingImage.imageUrl;
             this.position = listingImage.position;
             this.isPrimary = listingImage.isPrimary;
+            this.imageData = listingImage.imageData;
+            this.contentType = listingImage.contentType;
             return this;
         }
 
