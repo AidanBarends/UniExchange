@@ -21,7 +21,7 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-screen-2xl items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <Link to="/feed" aria-label="UniExchange home" className="rounded-lg">
           <Logo />
         </Link>
