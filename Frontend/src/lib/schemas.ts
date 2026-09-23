@@ -71,6 +71,33 @@ export const otpSchema = z.object({
     .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
+export const createListingSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, 'Title is required')
+    .max(150, 'Title cannot exceed 150 characters'),
+  categoryId: z.string().min(1, 'Please select a category'),
+  campusId: z.string().min(1, 'Please select a campus'),
+  price: z
+    .string()
+    .trim()
+    .min(1, 'Price is required')
+    .refine((val) => {
+      const n = Number(val)
+      return !isNaN(n) && n > 0
+    }, {
+      message: 'Please enter a valid positive number',
+    }),
+  description: z
+    .string()
+    .trim()
+    .max(2000, 'Description cannot exceed 2000 characters')
+    .optional()
+    .default(''),
+});
+
 export type SignUpValues = z.infer<typeof signUpSchema>
 export type LoginValues = z.infer<typeof loginSchema>
 export type OtpValues = z.infer<typeof otpSchema>
+export type CreateListingFormData = z.infer<typeof createListingSchema>
