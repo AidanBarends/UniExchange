@@ -87,7 +87,9 @@ public class SecurityConfig {
                                 "/api/listing-images/**",
                                 "/api/categories/**",
                                 "/api/campuses/**",
-                                "/api/bulletin-posts/**").permitAll()
+                                "/api/bulletin-posts/**",
+                                "/api/bulletin-post-images/**",
+                                "/uploads/**").permitAll()
                         .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/reports/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

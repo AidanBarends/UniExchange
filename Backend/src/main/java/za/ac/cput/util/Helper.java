@@ -101,10 +101,20 @@ public class Helper {
         return currency.matches("[A-Z]{3}");
     }
 
-    // Validate URL using commons-validator (listing_image.image_url)
+    /*
+     Validate URL using commons-validator (listing_image.image_url,
+     bulletin_post_image.image_url).
+
+     ALLOW_LOCAL_URLS, not the plain getInstance(): UploadController hands
+     back a URL on this same host (http://localhost:8080/uploads/...), and
+     the default UrlValidator rejects any host without a public-looking TLD -
+     "localhost" included - so a freshly uploaded image would fail this check
+     the moment ListingImageFactory or BulletinPostImageFactory tried to save
+     it.
+    */
     public static boolean isValidUrl(String url) {
         if (isNullOrEmpty(url)) return false;
-        return UrlValidator.getInstance().isValid(url);
+        return new UrlValidator(UrlValidator.ALLOW_LOCAL_URLS).isValid(url);
     }
 
 }

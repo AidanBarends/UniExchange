@@ -9,74 +9,90 @@
   anyone else's work.
 */
 
-import { authedRequest, request } from './client'
-import type { Category, Listing, ListingImage, ListingStatus } from './types'
+import { authedRequest, request } from "./client";
+import type { Category, Listing, ListingImage, ListingStatus } from "./types";
 
 /** The body POST /api/listings and PUT /api/listings/:id both expect. */
 export type ListingInput = {
-  sellerId: number
-  categoryId: number
-  campusId: number
-  title: string
-  description?: string | null
-  price: number
-  status: ListingStatus
-}
+  sellerId: number;
+  categoryId: number;
+  campusId: number;
+  title: string;
+  description?: string | null;
+  price: number;
+  status: ListingStatus;
+};
 
 export const listingsApi = {
   /** All listings. Public. */
-  list: () => request<Listing[]>('/api/listings'),
+  list: () => request<Listing[]>("/api/listings"),
 
   /**
    * Server-side search. Every parameter is optional and empty ones are dropped.
    * Backed by GET /api/listings/search on ListingController.
    */
-  search: (filters: { campusId?: number; categoryId?: number; title?: string } = {}) =>
-    request<Listing[]>('/api/listings/search', { query: filters }),
+  search: (
+    filters: { campusId?: number; categoryId?: number; title?: string } = {},
+  ) => request<Listing[]>("/api/listings/search", { query: filters }),
 
-  byId: (listingId: number | string) => request<Listing>(`/api/listings/${listingId}`),
+  byId: (listingId: number | string) =>
+    request<Listing>(`/api/listings/${listingId}`),
 
-  bySeller: (sellerId: number) => request<Listing[]>(`/api/listings/seller/${sellerId}`),
+  bySeller: (sellerId: number) =>
+    request<Listing[]>(`/api/listings/seller/${sellerId}`),
 
-  create: (body: ListingInput) => authedRequest<Listing>('/api/listings', { method: 'POST', body }),
+  create: (body: ListingInput) =>
+    authedRequest<Listing>("/api/listings", { method: "POST", body }),
 
   update: (listingId: number, body: ListingInput) =>
-    authedRequest<Listing>(`/api/listings/${listingId}`, { method: 'PUT', body }),
+    authedRequest<Listing>(`/api/listings/${listingId}`, {
+      method: "PUT",
+      body,
+    }),
 
   remove: (listingId: number) =>
-    authedRequest<void>(`/api/listings/${listingId}`, { method: 'DELETE' }),
+    authedRequest<void>(`/api/listings/${listingId}`, { method: "DELETE" }),
 
   /** PATCH /api/listings/:id/sold */
   markSold: (listingId: number) =>
-    authedRequest<Listing>(`/api/listings/${listingId}/sold`, { method: 'PATCH' }),
+    authedRequest<Listing>(`/api/listings/${listingId}/sold`, {
+      method: "PATCH",
+    }),
 
-  categories: () => request<Category[]>('/api/categories'),
+  categories: () => request<Category[]>("/api/categories"),
+
+  categoryById: (categoryId: number | string) =>
+    request<Category>(`/api/categories/${categoryId}`),
 
   imagesFor: (listingId: number | string) =>
     request<ListingImage[]>(`/api/listing-images/listing/${listingId}`),
 
   /** NOTE: you send `isPrimary`, but the response comes back as `primary`. */
   addImage: (body: {
-    listingId: number
-    imageUrl: string
-    position: number
-    isPrimary: boolean
-  }) => authedRequest<ListingImage>('/api/listing-images', { method: 'POST', body }),
+    listingId: number;
+    imageUrl: string;
+    position: number;
+    isPrimary: boolean;
+  }) =>
+    authedRequest<ListingImage>("/api/listing-images", {
+      method: "POST",
+      body,
+    }),
 
   uploadImage: (body: {
-    listingId: number
-    file: File
-    position: number
-    isPrimary: boolean
+    listingId: number;
+    file: File;
+    position: number;
+    isPrimary: boolean;
   }) => {
-    const form = new FormData()
-    form.append('listingId', String(body.listingId))
-    form.append('position', String(body.position))
-    form.append('isPrimary', String(body.isPrimary))
-    form.append('file', body.file)
-    return authedRequest<ListingImage>('/api/listing-images/upload', {
-      method: 'POST',
+    const form = new FormData();
+    form.append("listingId", String(body.listingId));
+    form.append("position", String(body.position));
+    form.append("isPrimary", String(body.isPrimary));
+    form.append("file", body.file);
+    return authedRequest<ListingImage>("/api/listing-images/upload", {
+      method: "POST",
       body: form,
-    })
+    });
   },
-}
+};

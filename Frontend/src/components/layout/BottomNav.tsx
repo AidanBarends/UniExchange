@@ -17,7 +17,7 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-200 bg-white/95 backdrop-blur sm:hidden"
     >
-      <ul className="mx-auto flex max-w-3xl">
+      <ul className="mx-auto flex max-w-screen-2xl">
         {NAV_ITEMS.map(({ to, label, Icon, match }) => {
           const active = match(pathname)
           return (
