@@ -3,7 +3,7 @@
 
  AuditLog POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 package za.ac.cput.domain.admin;
@@ -36,7 +36,7 @@ public class AuditLog {
     @Column(columnDefinition = "TEXT")
     private String details;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
     //  Constructors

@@ -1,0 +1,29 @@
+{
+  "java.compile.nullAnalysis.mode": "automatic",
+  // "automatic" re-syncs the classpath whenever pom.xml changes. With
+  // "interactive" you must run "Java: Reload Projects" by hand, and a stale
+  // import shows up as "not a valid java project".
+  "java.configuration.updateBuildConfiguration": "automatic",
+
+  // No JDK path here on purpose: the Java extension auto-detects installed JDKs,
+  // and an absolute path would be wrong on every other machine. This project
+  // compiles with --release 25, so it needs a JDK 25 or newer. If the extension
+  // picks the wrong one, add java.configuration.runtimes to your own VS Code
+  // USER settings (Cmd+Shift+P -> "Preferences: Open User Settings (JSON)"),
+  // not here.
+
+  "files.exclude": {
+    "**/target": true,
+    "**/dist": true,
+    "**/*.tsbuildinfo": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/package-lock.json": true
+  },
+
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" }
+}
