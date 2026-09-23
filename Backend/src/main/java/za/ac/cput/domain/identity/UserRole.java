@@ -3,7 +3,7 @@
 
  UserRole POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -32,7 +32,7 @@ public class UserRole {
     @Column(nullable = false, name = "role_id")
     private long roleId;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "assigned_at")
+    @Column(nullable = false, name = "assigned_at")
     private LocalDateTime assignedAt;
 
     //  Constructors

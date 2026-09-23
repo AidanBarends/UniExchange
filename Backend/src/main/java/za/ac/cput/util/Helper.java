@@ -3,7 +3,7 @@
 
  Helper utility class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -16,8 +16,39 @@ import java.math.BigDecimal;
 
 public class Helper {
 
+    /*
+     A CPUT student address: the student number, then @mycput.ac.za.
+
+     Deliberately 8-10 digits, not exactly 9. Every known team number is 9
+     (230255639, 230317693, 230270565, 240453182, 221374698) and CPUT's own
+     2012 announcement of the scheme uses a 9-digit example (210210210@...),
+     but CPUT publishes no specification of the digit count anywhere. Betting
+     the signup gate on a single illustrative example would silently lock
+     legitimate students out of the platform - the worst failure this feature
+     has - so the length is kept loose while the domain stays strict.
+
+     The real "is this a genuine student" check is not this regex at all: it is
+     the emailed OTP. A made-up number in the right shape still cannot register,
+     because the code is delivered to a mailbox that does not exist.
+
+     Overridable at runtime via app.auth.student-email-pattern (see
+     StudentEmailValidator). Staff (@cput.ac.za) are a separate Entra tenant
+     entirely and are not accepted yet; faculty support belongs in a sibling
+     isValidStaffEmail once the product needs it.
+    */
+    public static final String STUDENT_EMAIL_PATTERN = "^\\d{8,10}@mycput\\.ac\\.za$";
+
+    private static final java.util.regex.Pattern STUDENT_EMAIL =
+            java.util.regex.Pattern.compile(STUDENT_EMAIL_PATTERN, java.util.regex.Pattern.CASE_INSENSITIVE);
+
     // Prevent instantiation - utility class
     private Helper() {}
+
+    // Validate a CPUT student email - must be <9 digits>@mycput.ac.za (BR-004)
+    public static boolean isValidStudentEmail(String email) {
+        if (isNullOrEmpty(email)) return false;
+        return STUDENT_EMAIL.matcher(email.trim()).matches();
+    }
 
     // Check if a String is null or empty
     public static boolean isNullOrEmpty(String value) {

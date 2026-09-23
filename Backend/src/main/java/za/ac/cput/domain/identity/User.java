@@ -3,11 +3,13 @@
 
  User POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
 package za.ac.cput.domain.identity;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -61,10 +63,10 @@ public class User {
     @Column(name = "campus_id")
     private Long campusId;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "updated_at")
+    @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
     //  Constructors
@@ -113,6 +115,7 @@ public class User {
         return cellPhone;
     }
 
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }
@@ -151,7 +154,8 @@ public class User {
                 ", middleName='" + middleName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", cellPhone='" + cellPhone + '\'' +
-                ", passwordHash='" + passwordHash + '\'' +
+                // Never print the hash: this entity is logged in auth flows.
+                ", passwordHash='[REDACTED]'" +
                 ", dateOfBirth=" + dateOfBirth +
                 ", accountStatus=" + accountStatus +
                 ", emailVerifiedAt=" + emailVerifiedAt +

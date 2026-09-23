@@ -1,0 +1,8 @@
+
+# Editor settings: share the run/debug profiles and portable workspace settings.
+# Anything else VS Code drops in here stays local.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.json

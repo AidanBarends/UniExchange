@@ -1,0 +1,69 @@
+{
+  // Ctrl/Cmd+Shift+P -> "Tasks: Run Task"
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "frontend: install",
+      "type": "shell",
+      "command": "npm install",
+      "options": { "cwd": "${workspaceFolder}/Frontend" },
+      "problemMatcher": [],
+      "detail": "Install frontend dependencies (run this once after cloning)"
+    },
+    {
+      "label": "frontend: dev server",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/Frontend" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated" },
+      "detail": "Vite dev server on http://localhost:5173"
+    },
+    {
+      "label": "frontend: build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/Frontend" },
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "detail": "Type-check and bundle into Frontend/dist"
+    },
+    {
+      "label": "frontend: lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": { "cwd": "${workspaceFolder}/Frontend" },
+      "problemMatcher": ["$eslint-stylish"],
+      "detail": "ESLint over the whole frontend"
+    },
+    {
+      "label": "backend: test",
+      "type": "shell",
+      // sh ./mvnw rather than ./mvnw so it works even if the file lost its
+      // executable bit (a common surprise after cloning on Windows).
+      "command": "sh ./mvnw test",
+      "windows": { "command": ".\\mvnw.cmd test" },
+      "options": { "cwd": "${workspaceFolder}/Backend" },
+      "group": "test",
+      "problemMatcher": ["$maven"],
+      "detail": "67 tests, H2 in-memory - needs no MySQL and no SMTP"
+    },
+    {
+      "label": "backend: build",
+      "type": "shell",
+      "command": "sh ./mvnw clean package -DskipTests",
+      "windows": { "command": ".\\mvnw.cmd clean package -DskipTests" },
+      "options": { "cwd": "${workspaceFolder}/Backend" },
+      "problemMatcher": ["$maven"],
+      "detail": "Package the backend jar"
+    },
+    {
+      "label": "full stack: verify",
+      "dependsOrder": "sequence",
+      "dependsOn": ["backend: test", "frontend: lint", "frontend: build"],
+      "problemMatcher": [],
+      "detail": "Everything that must pass before opening a pull request"
+    }
+  ]
+}

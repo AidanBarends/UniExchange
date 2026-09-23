@@ -1,0 +1,63 @@
+{
+  // UniExchange run/debug profiles.
+  //
+  // Pick "Full Stack: Backend + Frontend" in the Run and Debug dropdown (or press
+  // F5 with it selected) to start both at once. Breakpoints work in Java, in the
+  // Vite dev server, and in React once Chrome attaches.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: Spring Boot",
+      "type": "java",
+      "request": "launch",
+      // No "projectName": the Java extension names a Maven project after either
+      // the artifactId ("uniexchange") or the folder ("Backend") depending on
+      // its version, and pinning the wrong one fails with
+      // "ConfigError: The project '...' is not a valid java project".
+      // There is only one Java project here, so mainClass alone resolves it.
+      "mainClass": "za.ac.cput.UniExchangeApplication",
+      "cwd": "${workspaceFolder}/Backend",
+      "console": "internalConsole",
+      "vmArgs": "-Dspring.output.ansi.enabled=ALWAYS"
+    },
+    {
+      "name": "Frontend: Vite dev server",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/Frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "serverReadyAction": {
+        "pattern": "(https?://localhost:[0-9]+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome",
+        "webRoot": "${workspaceFolder}/Frontend"
+      }
+    },
+    {
+      "name": "Frontend: attach Chrome to :5173",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/Frontend",
+      "sourceMaps": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack: Backend + Frontend",
+      "configurations": ["Backend: Spring Boot", "Frontend: Vite dev server"],
+      // Stopping either one tears down both.
+      "stopAll": true,
+      "presentation": {
+        "group": "1-fullstack",
+        "order": 1
+      }
+    }
+  ]
+}

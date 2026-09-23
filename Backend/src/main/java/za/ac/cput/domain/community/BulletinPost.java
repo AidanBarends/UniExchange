@@ -3,7 +3,7 @@
 
  AuditLog POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 package za.ac.cput.domain.community;
@@ -38,10 +38,10 @@ public class BulletinPost {
     @Column(nullable = false, name = "is_faculty_announcement")
     private boolean isFacultyAnnouncement;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "updated_at")
+    @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
     @Column(name = "removed_at")
