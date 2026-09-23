@@ -15,6 +15,12 @@
   The signed-in student's campus (useAuth().user?.campusId) is the default
   campus filter - that is the whole "hyper-local" point of the product.
 
+  LAYOUT: three columns on large screens, matching the desktop mockup -
+  FeedSidebar (categories/filters) | main feed | right rail (live activity +
+  safe-exchange callout). The right rail is presentational scaffolding for
+  now (see CampusLiveFeed.tsx / SafeExchangeCard.tsx) - hidden below `xl` so
+  it never competes with the feed on medium screens.
+
   UX details (borrowed patterns: Preline skeleton loading, Origin UI filter
   pills, standard sort control):
    - skeleton grid on first load instead of a spinner
@@ -26,73 +32,80 @@
   Components used only by this page live in src/components/feed/.
 */
 
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { useAuth } from '@/auth/useAuth'
-import { ActiveFilters } from '@/components/feed/ActiveFilters'
-import { CategoryChips } from '@/components/feed/CategoryChips'
-import { FeedSidebar } from '@/components/feed/FeedSidebar'
-import { ListingCardSkeleton } from '@/components/feed/ListingCardSkeleton'
-import { ListingGrid } from '@/components/feed/ListingGrid'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { Alert } from '@/components/ui/Alert'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
-import { TextField } from '@/components/ui/TextField'
-import { authApi } from '@/lib/api/auth'
-import { listingsApi } from '@/lib/api/listings'
-import type { Campus, Category, Listing } from '@/lib/api/types'
+import { useAuth } from "@/auth/useAuth";
+import { ActiveFilters } from "@/components/feed/ActiveFilters";
+import { CampusLiveFeed } from "@/components/feed/CampusLiveFeed";
+import { CategoryChips } from "@/components/feed/CategoryChips";
+import { FeedSidebar } from "@/components/feed/FeedSidebar";
+import { ListingCardSkeleton } from "@/components/feed/ListingCardSkeleton";
+import { ListingGrid } from "@/components/feed/ListingGrid";
+import { SafeExchangeCard } from "@/components/feed/SafeExchangeCard";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { TextField } from "@/components/ui/TextField";
+import { authApi } from "@/lib/api/auth";
+import { listingsApi } from "@/lib/api/listings";
+import type { Campus, Category, Listing } from "@/lib/api/types";
 
-const SEARCH_DEBOUNCE_MS = 350
+const SEARCH_DEBOUNCE_MS = 350;
 
-type SortKey = 'newest' | 'priceAsc' | 'priceDesc'
+type SortKey = "newest" | "priceAsc" | "priceDesc";
 
 const SORTERS: Record<SortKey, (a: Listing, b: Listing) => number> = {
   newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
   priceAsc: (a, b) => a.price - b.price,
   priceDesc: (a, b) => b.price - a.price,
-}
+};
 
 /* Decorative dot-grid backdrop for the empty state (Pattern Craft style). */
 const DOT_GRID =
-  'bg-[radial-gradient(circle,_theme(colors.brand.200)_1px,_transparent_1px)] [background-size:16px_16px]'
+  "bg-[radial-gradient(circle,_theme(colors.brand.200)_1px,_transparent_1px)] [background-size:16px_16px]";
 
 export function FeedPage() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Reference data (loaded once) + per-category ACTIVE counts for the sidebar.
-  const [categories, setCategories] = useState<Category[]>([])
-  const [campuses, setCampuses] = useState<Campus[]>([])
-  const [counts, setCounts] = useState<Record<number, number>>({})
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [counts, setCounts] = useState<Record<number, number>>({});
 
   // Filters. campusId defaults to the student's own campus.
-  const [campusId, setCampusId] = useState<number | null>(user?.campusId ?? null)
-  const [categoryId, setCategoryId] = useState<number | null>(null)
-  const [searchInput, setSearchInput] = useState('')
-  const [title, setTitle] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('newest')
+  const [campusId, setCampusId] = useState<number | null>(
+    user?.campusId ?? null,
+  );
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [title, setTitle] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("newest");
 
   /*
     Results. `listings` stays null until the first successful response arrives;
     while later requests are in flight the previous grid stays up (stale-while-
     revalidate, dimmed) instead of flashing a spinner on every filter change.
   */
-  const [listings, setListings] = useState<Listing[] | null>(null)
-  const [firstLoadDone, setFirstLoadDone] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [listings, setListings] = useState<Listing[] | null>(null);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Debounce the search box before it becomes a request parameter.
   useEffect(() => {
-    const timer = setTimeout(() => setTitle(searchInput.trim()), SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [searchInput])
+    const timer = setTimeout(
+      () => setTitle(searchInput.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Categories, campuses and count tallies never change while the page is open.
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function loadReferenceData() {
       try {
@@ -100,37 +113,38 @@ export function FeedPage() {
           listingsApi.categories(),
           authApi.campuses(),
           listingsApi.list(),
-        ])
-        if (cancelled) return
+        ]);
+        if (cancelled) return;
 
-        setCategories(categoryList)
-        setCampuses(campusList)
+        setCategories(categoryList);
+        setCampuses(campusList);
 
-        const tallies: Record<number, number> = {}
+        const tallies: Record<number, number> = {};
         for (const listing of everyListing) {
-          if (listing.status === 'ACTIVE') {
-            tallies[listing.categoryId] = (tallies[listing.categoryId] ?? 0) + 1
+          if (listing.status === "ACTIVE") {
+            tallies[listing.categoryId] =
+              (tallies[listing.categoryId] ?? 0) + 1;
           }
         }
-        setCounts(tallies)
+        setCounts(tallies);
       } catch {
         // Counts and pickers are non-critical; the listings effect surfaces
         // errors users actually care about.
       }
     }
 
-    loadReferenceData()
+    loadReferenceData();
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
   /*
     Listings follow the active filters. StrictMode-safe via the cancelled flag,
     and every setState happens in an async callback - none in the effect body.
   */
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     listingsApi
       .search({
@@ -139,48 +153,60 @@ export function FeedPage() {
         title: title || undefined,
       })
       .then((results) => {
-        if (cancelled) return
-        setListings(results)
+        if (cancelled) return;
+        setListings(results);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Something went wrong.')
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : "Something went wrong.",
+          );
       })
       .finally(() => {
-        if (!cancelled) setFirstLoadDone(true)
-      })
+        if (!cancelled) setFirstLoadDone(true);
+      });
 
     return () => {
-      cancelled = true
-    }
-  }, [campusId, categoryId, title, refreshKey])
+      cancelled = true;
+    };
+  }, [campusId, categoryId, title, refreshKey]);
 
-  const campusNames: Record<number, string> = {}
-  for (const campus of campuses) campusNames[campus.campusId] = campus.name
+  const campusNames: Record<number, string> = {};
+  for (const campus of campuses) campusNames[campus.campusId] = campus.name;
 
   const totalActive = useMemo(
     () => Object.values(counts).reduce((sum, count) => sum + count, 0),
     [counts],
-  )
+  );
 
   // Sorting is client-side: search already returned every matching ACTIVE row.
   const sortedListings = useMemo(() => {
-    if (!listings) return null
-    return [...listings].sort(SORTERS[sortKey])
-  }, [listings, sortKey])
+    if (!listings) return null;
+    return [...listings].sort(SORTERS[sortKey]);
+  }, [listings, sortKey]);
 
-  const activeCampusName = campusId !== null ? campusNames[campusId] : undefined
-  const activeCategoryName = categories.find((c) => c.categoryId === categoryId)?.name
+  const activeCampusName =
+    campusId !== null ? campusNames[campusId] : undefined;
+  const activeCategoryName = categories.find(
+    (c) => c.categoryId === categoryId,
+  )?.name;
+  const hasActiveFilters = Boolean(
+    activeCampusName || activeCategoryName || title,
+  );
 
   function clearAllFilters() {
-    setCampusId(null)
-    setCategoryId(null)
-    setSearchInput('')
-    setTitle('')
+    setCampusId(null);
+    setCategoryId(null);
+    setSearchInput("");
+    setTitle("");
   }
 
   return (
     <>
-      <PageHeader title="Recent Listings" subtitle="What's for sale on your campus" />
+      <PageHeader
+        title="Recent Listings"
+        subtitle="What's for sale on your campus"
+      />
 
       {error && (
         <Alert tone="error">
@@ -221,7 +247,7 @@ export function FeedPage() {
               {searchInput && (
                 <button
                   type="button"
-                  onClick={() => setSearchInput('')}
+                  onClick={() => setSearchInput("")}
                   aria-label="Clear search"
                   className="absolute right-2.5 top-[38px] text-ink-400 hover:text-ink-700"
                 >
@@ -244,9 +270,13 @@ export function FeedPage() {
               <Select
                 label="Campus"
                 name="feedCampus"
-                value={campusId ?? ''}
+                value={campusId ?? ""}
                 onChange={(event) =>
-                  setCampusId(event.target.value === '' ? null : Number(event.target.value))
+                  setCampusId(
+                    event.target.value === ""
+                      ? null
+                      : Number(event.target.value),
+                  )
                 }
               >
                 <option value="">All campuses</option>
@@ -278,50 +308,97 @@ export function FeedPage() {
             />
           </div>
 
+          {/* Status line matching the mockup's "Showing N active items" row,
+              with a live indicator on the right. Removable filter pills only
+              render once a filter is actually active, same as before. */}
           {firstLoadDone && !error && sortedListings && (
-            <div className="mt-4">
-              <ActiveFilters
-                resultCount={sortedListings.length}
-                campusName={activeCampusName}
-                categoryName={activeCategoryName}
-                search={title || undefined}
-                onClearCampus={() => setCampusId(null)}
-                onClearCategory={() => setCategoryId(null)}
-                onClearSearch={() => setSearchInput('')}
-                onClearAll={clearAllFilters}
-              />
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              {hasActiveFilters ? (
+                <ActiveFilters
+                  resultCount={sortedListings.length}
+                  campusName={activeCampusName}
+                  categoryName={activeCategoryName}
+                  search={title || undefined}
+                  onClearCampus={() => setCampusId(null)}
+                  onClearCategory={() => setCategoryId(null)}
+                  onClearSearch={() => setSearchInput("")}
+                  onClearAll={clearAllFilters}
+                />
+              ) : (
+                <p className="text-sm text-ink-500">
+                  Showing {sortedListings.length} active{" "}
+                  {sortedListings.length === 1 ? "item" : "items"} on campus
+                </p>
+              )}
+
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                <span
+                  className="size-1.5 rounded-full bg-emerald-500"
+                  aria-hidden="true"
+                />
+                Real-time feed
+              </span>
             </div>
           )}
 
           <div className="mt-4">
             {!firstLoadDone ? (
               /* First load: skeleton grid, same shape as the real cards. */
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {Array.from({ length: 6 }, (_, index) => (
                   <ListingCardSkeleton key={index} />
                 ))}
               </div>
-            ) : error ? null : sortedListings === null || sortedListings.length === 0 ? (
+            ) : error ? null : sortedListings === null ||
+              sortedListings.length === 0 ? (
               <div className={`${DOT_GRID} rounded-2xl p-1`}>
                 <div className="rounded-xl bg-white/80 backdrop-blur-[1px]">
                   <div className="p-8 text-center">
-                    <p className="text-sm font-medium text-ink-700">Nothing for sale here yet</p>
+                    <p className="text-sm font-medium text-ink-700">
+                      Nothing for sale here yet
+                    </p>
                     <p className="mx-auto mt-1.5 max-w-sm text-sm text-ink-500">
-                      No active listings match these filters. Try another campus or category - or
-                      be the first to sell.
+                      No active listings match these filters. Try another campus
+                      or category - or be the first to sell.
                     </p>
                     <div className="mt-4 flex justify-center">
-                      <Button onClick={() => navigate('/listings/new')}>Sell something</Button>
+                      <Button onClick={() => navigate("/listings/new")}>
+                        Sell something
+                      </Button>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <ListingGrid listings={sortedListings} campusNames={campusNames} />
+              <ListingGrid
+                listings={sortedListings}
+                campusNames={campusNames}
+              />
             )}
           </div>
+
+          {/* Footer prompt, matching the mockup's "didn't find it?" card. */}
+          <div className="mt-6 rounded-2xl border border-dashed border-gray-300 p-6 text-center">
+            <p className="text-sm text-ink-500">
+              Looking for something specific that isn't listed?
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/bulletin")}
+              className="mt-1 text-sm font-semibold text-brand-700 hover:text-brand-900"
+            >
+              Post a "Wanted" request on the Campus Bulletin →
+            </button>
+          </div>
         </div>
+
+        <aside className="hidden w-80 shrink-0 space-y-4 xl:block">
+          <div className="sticky top-24 space-y-4">
+            <CampusLiveFeed />
+            <SafeExchangeCard />
+          </div>
+        </aside>
       </div>
     </>
-  )
+  );
 }
