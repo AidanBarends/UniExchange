@@ -3,7 +3,7 @@
 
  Listing POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -52,10 +52,10 @@ public class Listing {
     @Column(nullable = false)
     private ListingStatus status;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "updated_at")
+    @Column(nullable = false, name = "updated_at")
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")

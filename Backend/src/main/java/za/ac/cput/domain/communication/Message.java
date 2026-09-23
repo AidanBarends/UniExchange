@@ -3,7 +3,7 @@
 
  Message POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -35,7 +35,7 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "sent_at")
+    @Column(nullable = false, name = "sent_at")
     private LocalDateTime sentAt;
 
     //  Constructors

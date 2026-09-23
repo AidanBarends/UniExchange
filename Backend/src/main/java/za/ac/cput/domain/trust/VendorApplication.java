@@ -3,7 +3,7 @@
 
  VendorApplication POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -48,7 +48,7 @@ public class VendorApplication {
     @Column(length = 500, name = "review_note")
     private String reviewNote;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "reviewed_at")

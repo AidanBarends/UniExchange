@@ -3,7 +3,7 @@
 
  Transaction POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -51,7 +51,7 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionStatus status;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "completed_at")

@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local, untracked config overrides (may contain your DB password)
+src/main/resources/application-local.properties

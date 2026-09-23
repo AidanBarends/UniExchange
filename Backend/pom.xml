@@ -11,9 +11,9 @@
     </parent>
 
     <groupId>za.ac.cput</groupId>
-    <artifactId>Backend</artifactId>
+    <artifactId>uniexchange</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Backend</name>
+    <name>UniExchange</name>
     <description>UniExchange Backend API</description>
 
     <properties>
@@ -65,6 +65,56 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Outbound email: OTP delivery for student verification -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Auth milestone: Spring Security 7 (comes with Boot 4) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- JWT. jjwt-gson (not jjwt-jackson) because jjwt-jackson depends on
+             Jackson 2 databind, which is NOT on this classpath - Boot 4 uses
+             tools.jackson 3. Gson is version-managed by the Boot 4 BOM and
+             jjwt-impl discovers the serializer via ServiceLoader. -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.13.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-gson</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- @DataJpaTest lives in its own module on Boot 4 (moved to
+             org.springframework.boot.data.jpa.test.autoconfigure) and is NOT
+             pulled in by spring-boot-starter-test. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- @WithMockUser and friends are not transitive in Boot 4 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Reused from your previous project: email/field format checks -->
         <dependency>
             <groupId>commons-validator</groupId>
@@ -72,20 +122,7 @@
             <version>1.10.1</version>
             <scope>compile</scope>
         </dependency>
-
-        <!-- ============ ADD LATER (uncomment when you reach each milestone) ============
-
-        <1> Auth milestone: add BOTH of these together -->
-        <!--
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-        </dependency>
-        -->
+        <!-- ============ ADD LATER (uncomment when you reach each milestone) ============ -->
 
         <!-- Swagger UI (Boot 4 needs springdoc 3.x; the 2.3.0 in your notes is Boot 3.2 only) -->
         <!--

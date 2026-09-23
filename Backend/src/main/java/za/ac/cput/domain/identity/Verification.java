@@ -3,7 +3,7 @@
 
  Verification POJO class
 
- Author: <Your Full Name> (<Student Number>)
+ Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 04 September 2026
 */
 
@@ -45,7 +45,11 @@ public class Verification {
     @Column(name = "verified_at")
     private LocalDateTime verifiedAt;
 
-    @Column(nullable = false, insertable = false, updatable = false, name = "created_at")
+    // Number of failed code submissions, so a short numeric OTP cannot be brute-forced.
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(nullable = false, name = "created_at")
     private LocalDateTime createdAt;
 
     //  Constructors
@@ -60,6 +64,7 @@ public class Verification {
         this.token = builder.token;
         this.expiresAt = builder.expiresAt;
         this.verifiedAt = builder.verifiedAt;
+        this.attempts = builder.attempts;
         this.createdAt = builder.createdAt;
     }
 
@@ -88,6 +93,10 @@ public class Verification {
         return verifiedAt;
     }
 
+    public int getAttempts() {
+        return attempts;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -102,6 +111,7 @@ public class Verification {
                 ", token='" + token + '\'' +
                 ", expiresAt=" + expiresAt +
                 ", verifiedAt=" + verifiedAt +
+                ", attempts=" + attempts +
                 ", createdAt=" + createdAt +
                 '}';
     }
@@ -116,6 +126,7 @@ public class Verification {
         private String token;
         private LocalDateTime expiresAt;
         private LocalDateTime verifiedAt;
+        private int attempts;
         private LocalDateTime createdAt;
 
         //  Setters
@@ -149,6 +160,11 @@ public class Verification {
             return this;
         }
 
+        public Builder setAttempts(int attempts) {
+            this.attempts = attempts;
+            return this;
+        }
+
         public Builder setCreatedAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -161,6 +177,7 @@ public class Verification {
             this.token = verification.token;
             this.expiresAt = verification.expiresAt;
             this.verifiedAt = verification.verifiedAt;
+            this.attempts = verification.attempts;
             this.createdAt = verification.createdAt;
             return this;
         }
