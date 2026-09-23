@@ -12,7 +12,7 @@ import {zodResolver} from "@hookform/resolvers/zod";
 import {useAuth} from '@/auth/useAuth';
 import {authApi} from "@/lib/api/auth";
 import {listingsApi} from "@/lib/api/listings";
-import type {Campus} from "@/lib/api/types";
+import type {Campus, Category} from "@/lib/api/types";
 import {createListingSchema} from '@/lib/schemas';
 import type { CreateListingFormData } from '@/lib/schemas';
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -23,42 +23,11 @@ import {Select} from "@/components/ui/Select";
 import {Button} from "@/components/ui/Button";
 import {Alert} from "@/components/ui/Alert";
 
-interface CategoryOption {
-    categoryId: number;
-    name: string;
-}
-
-const DEFAULT_CATEGORIES = [
-    'Electronics',
-    'Textbooks',
-    'Clothes',
-    'Furniture',
-    'Stationery',
-    'Sports & Fitness',
-    'Household Items',
-    'Other',
-] as const;
-
-const CAMPUS_NAMES = [
-    'Bellville Campus',
-    'Granger Bay Campus',
-    'Mowbray Campus',
-    'Wellington Campus',
-    'District Six campus',
-] as const;
-
-const DEFAULT_CAMPUSES: Campus[] = CAMPUS_NAMES.map((name, index) => ({
-    campusId: index + 1,
-    name,
-    city: '',
-    address: null,
-}));
-
 export const CreateListingPage: React.FC = () => {
     const navigate = useNavigate();
     const {user} = useAuth();
 
-    const [categories, setCategories] = useState<CategoryOption[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [campuses, setCampuses] = useState<Campus[]>([]);
     const [isLoadingCategories, setIsLoadingCategories] = useState(true);
     const [isLoadingCampuses, setIsLoadingCampuses] = useState(true);
@@ -93,40 +62,8 @@ export const CreateListingPage: React.FC = () => {
                     authApi.campuses(),
                 ]);
                 if (mounted) {
-                    const availableCategories = categoryData || [];
-                    const categoriesByName = new Map(
-                        availableCategories.map((category) => [category.name.trim().toLowerCase(), category]),
-                    );
-                    const defaultCategories = DEFAULT_CATEGORIES.map((name, index) =>
-                        categoriesByName.get(name.toLowerCase()) ?? {
-                            categoryId: index + 1,
-                            name,
-                        },
-                    );
-                    const additionalCategories = availableCategories.filter(
-                        (category) => !DEFAULT_CATEGORIES.some(
-                            (name) => name.toLowerCase() === category.name.trim().toLowerCase(),
-                        ),
-                    );
-                    setCategories([...defaultCategories, ...additionalCategories]);
-                    const availableCampuses = campusData || [];
-                    const campusesByName = new Map(
-                        availableCampuses.flatMap((campus) => [
-                            [campus.name.trim().toLowerCase(), campus],
-                            [`${campus.name.trim().toLowerCase()} campus`, campus],
-                        ]),
-                    );
-                    const defaultCampuses = DEFAULT_CAMPUSES.map((campus) =>
-                        campusesByName.get(campus.name.toLowerCase()) ??
-                        campusesByName.get(campus.name.replace(/ campus$/i, '').toLowerCase()) ??
-                        campus,
-                    );
-                    const additionalCampuses = availableCampuses.filter(
-                        (campus) => !defaultCampuses.some(
-                            (defaultCampus) => defaultCampus.campusId === campus.campusId,
-                        ),
-                    );
-                    setCampuses([...defaultCampuses, ...additionalCampuses]);
+                    setCategories(categoryData);
+                    setCampuses(campusData);
                 }
             } catch (err: unknown) {
                 if (mounted) {
@@ -227,17 +164,6 @@ export const CreateListingPage: React.FC = () => {
         }
     };
 
-    const campusOptions = campuses
-        .filter((campus) => CAMPUS_NAMES.includes(campus.name as typeof CAMPUS_NAMES[number]) ||
-            DEFAULT_CAMPUSES.some((defaultCampus) => defaultCampus.campusId === campus.campusId))
-        .map((campus) => ({
-            ...campus,
-            displayName: CAMPUS_NAMES.find((name) =>
-                name.toLowerCase() === campus.name.trim().toLowerCase() ||
-                name.replace(/ campus$/i, '').toLowerCase() === campus.name.trim().toLowerCase(),
-            ) ?? campus.name,
-        }));
-
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
             <PageHeader
@@ -278,9 +204,9 @@ export const CreateListingPage: React.FC = () => {
                             <option value="">
                                 {isLoadingCampuses ? 'Loading campuses...' : 'Select a campus'}
                             </option>
-                            {campusOptions.map((campus) => (
+                            {campuses.map((campus) => (
                                 <option key={campus.campusId} value={String(campus.campusId)}>
-                                    {campus.displayName}
+                                    {campus.name}
                                 </option>
                             ))}
                         </Select>
