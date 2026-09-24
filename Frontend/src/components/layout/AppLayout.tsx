@@ -19,7 +19,7 @@ export function AppLayout() {
       <TopBar />
 
       {/* pb-24 keeps content clear of the fixed mobile tab bar. */}
-      <main className="mx-auto max-w-3xl px-4 py-6 pb-24 sm:pb-8">
+      <main className="mx-auto max-w-screen-2xl px-4 py-6 pb-24 sm:px-6 sm:pb-8 lg:px-8">
         <Outlet />
       </main>
 

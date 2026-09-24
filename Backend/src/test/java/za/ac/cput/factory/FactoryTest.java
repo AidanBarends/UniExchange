@@ -36,7 +36,9 @@ import za.ac.cput.domain.communication.ConversationParticipant;
 import za.ac.cput.domain.communication.Message;
 import za.ac.cput.domain.communication.Notification;
 import za.ac.cput.domain.community.BulletinPost;
+import za.ac.cput.domain.community.BulletinPostImage;
 import za.ac.cput.domain.enums.AccountStatus;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.domain.enums.BulletinPostStatus;
 import za.ac.cput.domain.enums.ListingStatus;
 import za.ac.cput.domain.enums.NotificationType;
@@ -72,6 +74,7 @@ import za.ac.cput.factory.communication.ConversationParticipantFactory;
 import za.ac.cput.factory.communication.MessageFactory;
 import za.ac.cput.factory.communication.NotificationFactory;
 import za.ac.cput.factory.community.BulletinPostFactory;
+import za.ac.cput.factory.community.BulletinPostImageFactory;
 import za.ac.cput.factory.identity.CampusFactory;
 import za.ac.cput.factory.identity.RoleFactory;
 import za.ac.cput.factory.identity.TrustedDeviceFactory;
@@ -488,17 +491,43 @@ class FactoryTest {
         @Test
         void bulletinPost() {
             BulletinPost post = BulletinPostFactory.createBulletinPost(1L, "Res meeting",
-                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false);
+                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false,
+                    BulletinPostCategory.STUDY_GROUP);
 
             assertEquals("Res meeting", post.getTitle());
             assertEquals(BulletinPostStatus.PUBLISHED, post.getStatus());
             assertFalse(post.isFacultyAnnouncement());
+            assertEquals(BulletinPostCategory.STUDY_GROUP, post.getCategory());
+        }
+
+        @Test
+        void bulletinPostDefaultsCategoryWhenNull() {
+            BulletinPost post = BulletinPostFactory.createBulletinPost(1L, "Res meeting",
+                    "Tuesday 18:00 in the common room", BulletinPostStatus.PUBLISHED, false, null);
+
+            assertEquals(BulletinPostCategory.GENERAL, post.getCategory());
         }
 
         @Test
         void bulletinPostRejectsBlankContent() {
             assertThrows(IllegalArgumentException.class, () -> BulletinPostFactory.createBulletinPost(
-                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false));
+                    1L, "Res meeting", "", BulletinPostStatus.PUBLISHED, false, BulletinPostCategory.GENERAL));
+        }
+
+        @Test
+        void bulletinPostImage() {
+            BulletinPostImage image = BulletinPostImageFactory.createBulletinPostImage(
+                    1L, "https://uniexchange.co.za/img/1.png", 0, true);
+
+            assertEquals("https://uniexchange.co.za/img/1.png", image.getImageUrl());
+            assertEquals(0, image.getPosition());
+            assertTrue(image.isPrimary());
+        }
+
+        @Test
+        void bulletinPostImageRejectsBadUrl() {
+            assertThrows(IllegalArgumentException.class,
+                    () -> BulletinPostImageFactory.createBulletinPostImage(1L, "not a url", 0, true));
         }
 
         @Test

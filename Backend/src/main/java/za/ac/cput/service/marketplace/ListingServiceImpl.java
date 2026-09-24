@@ -17,16 +17,23 @@ import org.springframework.stereotype.Service;
 
 import za.ac.cput.domain.enums.ListingStatus;
 import za.ac.cput.domain.marketplace.Listing;
+import za.ac.cput.domain.marketplace.ListingImage;
 import za.ac.cput.repository.marketplace.ListingRepository;
+import za.ac.cput.storage.LocalFileStorage;
 import za.ac.cput.util.Helper;
 
 @Service
 public class ListingServiceImpl implements IListingService {
 
     private final ListingRepository repository;
+    private final IListingImageService imageService;
+    private final LocalFileStorage storage;
 
-    public ListingServiceImpl(ListingRepository repository) {
+    public ListingServiceImpl(ListingRepository repository, IListingImageService imageService,
+                              LocalFileStorage storage) {
         this.repository = repository;
+        this.imageService = imageService;
+        this.storage = storage;
     }
 
     @Override
@@ -49,6 +56,12 @@ public class ListingServiceImpl implements IListingService {
         if (id == null || !this.repository.existsById(id)) {
             return false;
         }
+
+        for (ListingImage image : this.imageService.findByListingId(id)) {
+            this.imageService.delete(image.getImageId());
+            this.storage.deleteIfManaged(image.getImageUrl());
+        }
+
         this.repository.deleteById(id);
         return true;
     }

@@ -23,4 +23,6 @@ public interface ListingImageRepository extends JpaRepository<ListingImage, Long
 
     List<ListingImage> findByListingIdAndIsPrimaryTrue(long listingId);
 
+    java.util.Optional<ListingImage> findByImageUrl(String imageUrl);
+
 }

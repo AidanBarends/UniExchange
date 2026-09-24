@@ -20,4 +20,5 @@ public interface IListingImageService extends IService<ListingImage, Long> {
 
     ListingImage findPrimaryForListing(long listingId);
 
+    ListingImage findByImageUrl(String imageUrl);
 }
