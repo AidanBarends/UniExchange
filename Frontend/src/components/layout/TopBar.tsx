@@ -1,23 +1,70 @@
 /*
   App header: wordmark home link, desktop nav, notifications bell, sign out.
 
-  The bell is always visible; the unread dot is a slot the notifications owner
-  can light up once GET /api/notifications/user/:id/unread is wired.
+  Unread dot: fetches notificationsApi.unreadForUser(userId) on mount, then
+  keeps it current three ways -
+   - polls every UNREAD_POLL_MS while the tab is open
+   - refetches on window focus (switching back to the tab updates it without
+     waiting for the interval)
+   - refetches immediately when the /notifications page marks something
+     read, via the tiny pub/sub in lib/notificationEvents.ts, so the dot
+     clears live instead of lagging behind by up to a full poll interval
+
+  No websocket/SSE anywhere else in this stack, so polling is the
+  pragmatic choice here rather than introducing a new transport for one
+  badge.
 */
 
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 
-import { useAuth } from '@/auth/useAuth'
-import { Button } from '@/components/ui/Button'
+import { useAuth } from "@/auth/useAuth";
+import { Button } from "@/components/ui/Button";
+import { notificationsApi } from "@/lib/api/notifications";
+import { onNotificationsChanged } from "@/lib/notificationEvents";
 
-import { BellIcon } from './NavIcons'
-import { Logo } from './Logo'
-import { NAV_ITEMS } from './navigation'
+import { BellIcon } from "./NavIcons";
+import { Logo } from "./Logo";
+import { NAV_ITEMS } from "./navigation";
+
+const UNREAD_POLL_MS = 45_000;
 
 export function TopBar() {
-  const { signOut } = useAuth()
-  const { pathname } = useLocation()
-  const onNotifications = pathname.startsWith('/notifications')
+  const { signOut, session } = useAuth();
+  const { pathname } = useLocation();
+  const onNotifications = pathname.startsWith("/notifications");
+  const userId = session?.userId;
+
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let cancelled = false;
+
+    function refetch() {
+      notificationsApi
+        .unreadForUser(userId as number)
+        .then((unread) => {
+          if (!cancelled) setHasUnread(unread.length > 0);
+        })
+        .catch(() => {
+          // Non-critical chrome; leave the dot as it was on a failed check.
+        });
+    }
+
+    refetch();
+    const interval = setInterval(refetch, UNREAD_POLL_MS);
+    window.addEventListener("focus", refetch);
+    const unsubscribe = onNotificationsChanged(refetch);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("focus", refetch);
+      unsubscribe();
+    };
+  }, [userId]);
 
   return (
     <header className="sticky top-0 z-10 border-b border-gray-200 bg-white">
@@ -30,23 +77,23 @@ export function TopBar() {
         <nav aria-label="Primary" className="ml-4 hidden sm:block">
           <ul className="flex items-center gap-1">
             {NAV_ITEMS.map(({ to, label, match }) => {
-              const active = match(pathname)
+              const active = match(pathname);
               return (
                 <li key={to}>
                   <Link
                     to={to}
-                    aria-current={active ? 'page' : undefined}
+                    aria-current={active ? "page" : undefined}
                     className={
-                      'rounded-lg px-3 py-1.5 text-sm font-medium transition ' +
+                      "rounded-lg px-3 py-1.5 text-sm font-medium transition " +
                       (active
-                        ? 'bg-brand-50 text-brand-800'
-                        : 'text-ink-500 hover:bg-gray-50 hover:text-ink-900')
+                        ? "bg-brand-50 text-brand-800"
+                        : "text-ink-500 hover:bg-gray-50 hover:text-ink-900")
                     }
                   >
                     {label}
                   </Link>
                 </li>
-              )
+              );
             })}
           </ul>
         </nav>
@@ -54,21 +101,22 @@ export function TopBar() {
         <div className="ml-auto flex items-center gap-1">
           <Link
             to="/notifications"
-            aria-label="Notifications"
-            aria-current={onNotifications ? 'page' : undefined}
+            aria-label={hasUnread ? "Notifications (unread)" : "Notifications"}
+            aria-current={onNotifications ? "page" : undefined}
             className={
-              'relative rounded-lg p-2 transition ' +
+              "relative rounded-lg p-2 transition " +
               (onNotifications
-                ? 'bg-brand-50 text-brand-800'
-                : 'text-ink-500 hover:bg-gray-50 hover:text-ink-900')
+                ? "bg-brand-50 text-brand-800"
+                : "text-ink-500 hover:bg-gray-50 hover:text-ink-900")
             }
           >
             <BellIcon className="size-5" />
-            {/*
-              TODO (notifications owner): render this dot only when
-              notificationsApi.unreadForUser(userId) comes back non-empty.
-              <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-red-500" />
-            */}
+            {hasUnread && (
+              <span
+                aria-hidden="true"
+                className="absolute right-1.5 top-1.5 size-2 rounded-full bg-red-500"
+              />
+            )}
           </Link>
 
           <Button variant="ghost" onClick={signOut} className="w-auto px-3">
@@ -77,5 +125,5 @@ export function TopBar() {
         </div>
       </div>
     </header>
-  )
+  );
 }

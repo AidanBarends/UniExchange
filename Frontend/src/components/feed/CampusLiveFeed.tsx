@@ -1,60 +1,65 @@
 /*
   CampusLiveFeed - the right-rail "Campus Live Feed" card from the desktop
-  mockup: a live-badge header and a scrollable list of recent activity
-  (avatar, actor name, message, relative time).
+  mockup. Backed by real bulletin posts now (GET /api/bulletin-posts via
+  bulletinApi.list(), fetched once in FeedPage alongside the other reference
+  data and passed down as `posts`).
 
-  PLACEHOLDER DATA: there's no activity-feed endpoint yet. AuditLogController
-  is the closest existing thing on the backend but it's admin-scoped, not a
-  public activity stream. Swap ITEMS below for a real fetch (or drop this
-  card) once that decision is made.
+  No fake rows: if there are no PUBLISHED posts yet, this renders a plain
+  empty state instead of placeholder content, since the whole point is that
+  it should only show real student activity.
+
+  Author names: `posts` only carries `authorId`, so FeedPage separately
+  resolves the distinct authors behind the visible posts via usersApi.byId
+  and passes the result as `authorNames` (authorId -> "First Last"). If a
+  particular lookup failed or hasn't resolved yet, that post falls back to
+  "A student" rather than blocking the row.
 
   Owner: Joshua Reid Adams (230317693)
 */
 
-import { Avatar } from "@/components/ui/Avatar";
-import { Card } from "@/components/ui/Card";
+import { useNavigate } from "react-router-dom";
 
-type LiveFeedItem = {
-  id: string;
-  actor: string;
-  message: string;
-  timeAgo: string;
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import type { BulletinPost } from "@/lib/api/types";
+
+type CampusLiveFeedProps = {
+  /** Recent PUBLISHED bulletin posts, newest first. Pass [] while loading or empty. */
+  posts: BulletinPost[];
+  /** authorId -> "First Last", for whichever authors FeedPage managed to resolve. */
+  authorNames: Record<number, string>;
+  loading?: boolean;
 };
 
-const ITEMS: LiveFeedItem[] = [
-  {
-    id: "1",
-    actor: "A student",
-    message: "marked an item as traded",
-    timeAgo: "5m ago",
-  },
-  {
-    id: "2",
-    actor: "A student",
-    message: 'posted a "wanted" request on the Bulletin',
-    timeAgo: "18m ago",
-  },
-  {
-    id: "3",
-    actor: "A student",
-    message: "dropped the price on a listing",
-    timeAgo: "32m ago",
-  },
-  {
-    id: "4",
-    actor: "A study group",
-    message: "opened seats for tonight",
-    timeAgo: "1h ago",
-  },
-  {
-    id: "5",
-    actor: "A student",
-    message: "joined and was verified via student email",
-    timeAgo: "2h ago",
-  },
-];
+const CATEGORY_LABEL: Record<BulletinPost["category"], string> = {
+  GENERAL: "General",
+  EVENT: "Event",
+  STUDY_GROUP: "Study Group",
+  LOST_AND_FOUND: "Lost & Found",
+};
 
-export function CampusLiveFeed() {
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+export function CampusLiveFeed({
+  posts,
+  authorNames,
+  loading = false,
+}: CampusLiveFeedProps) {
+  const navigate = useNavigate();
+
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
@@ -68,23 +73,53 @@ export function CampusLiveFeed() {
         </span>
       </div>
 
-      <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto pr-1">
-        {ITEMS.map((item) => (
-          <li key={item.id} className="flex gap-2.5">
-            <Avatar name={item.actor} className="size-7 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm text-ink-700">
-                <span className="font-semibold text-ink-900">{item.actor}</span>{" "}
-                {item.message}
-              </p>
-              <p className="mt-0.5 text-xs text-ink-400">{item.timeAgo}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        <div className="mt-3 space-y-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div
+              key={index}
+              className="h-10 animate-pulse rounded-lg bg-gray-100"
+            />
+          ))}
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="mt-3 rounded-lg border border-dashed border-gray-200 p-4 text-center">
+          <p className="text-sm text-ink-500">No bulletin activity yet.</p>
+          <p className="mt-0.5 text-xs text-ink-400">
+            Posts on the Campus Bulletin will show up here as they happen.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto pr-1">
+          {posts.map((post) => (
+            <li key={post.bulletinPostId} className="flex gap-2.5">
+              <span className="mt-0.5 shrink-0">
+                <Badge tone={post.facultyAnnouncement ? "brand" : "neutral"}>
+                  {CATEGORY_LABEL[post.category]}
+                </Badge>
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm text-ink-700">
+                  <span className="font-semibold text-ink-900">
+                    {authorNames[post.authorId] ?? "A student"}
+                  </span>{" "}
+                  posted{" "}
+                  <span className="font-medium text-ink-900">
+                    "{post.title}"
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-ink-400">
+                  {timeAgo(post.createdAt)}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <button
         type="button"
+        onClick={() => navigate("/bulletin")}
         className="mt-3 text-sm font-medium text-brand-700 hover:text-brand-900"
       >
         Open Campus Bulletin board →

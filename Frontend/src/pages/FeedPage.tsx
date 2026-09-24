@@ -11,6 +11,9 @@
    - listingsApi.list()                                   GET /api/listings
      (one-off, powers the sidebar category counts)
    - authApi.campuses()                                   GET /api/campuses
+   - bulletinApi.list()                                    GET /api/bulletin-posts
+     (filtered to PUBLISHED, newest LIVE_FEED_LIMIT, powers the right-rail
+     live feed - no author name shown yet, see CampusLiveFeed.tsx)
 
   The signed-in student's campus (useAuth().user?.campusId) is the default
   campus filter - that is the whole "hyper-local" point of the product.
@@ -49,8 +52,13 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { authApi } from "@/lib/api/auth";
+import { bulletinApi } from "@/lib/api/bulletin";
 import { listingsApi } from "@/lib/api/listings";
-import type { Campus, Category, Listing } from "@/lib/api/types";
+import type { BulletinPost, Campus, Category, Listing } from "@/lib/api/types";
+import { usersApi } from "@/lib/api/users";
+
+/** How many recent bulletin posts the live-feed card shows. */
+const LIVE_FEED_LIMIT = 6;
 
 const SEARCH_DEBOUNCE_MS = 350;
 
@@ -74,6 +82,12 @@ export function FeedPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [counts, setCounts] = useState<Record<number, number>>({});
+
+  // Recent bulletin posts for the right-rail live feed. null = still loading;
+  // [] is a real "nothing posted yet" state, not an error.
+  const [livePosts, setLivePosts] = useState<BulletinPost[] | null>(null);
+  // authorId -> display name, resolved only for the authors of livePosts.
+  const [authorNames, setAuthorNames] = useState<Record<number, string>>({});
 
   // Filters. campusId defaults to the student's own campus.
   const [campusId, setCampusId] = useState<number | null>(
@@ -133,7 +147,57 @@ export function FeedPage() {
       }
     }
 
+    async function loadLiveFeed() {
+      try {
+        // bulletinApi.list() has no "recent"/status filter server-side, so
+        // filter to PUBLISHED and take the newest few here.
+        const allPosts = await bulletinApi.list();
+        if (cancelled) return;
+
+        const recent = allPosts
+          .filter((post) => post.status === "PUBLISHED")
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .slice(0, LIVE_FEED_LIMIT);
+
+        setLivePosts(recent);
+
+        // Resolve just the distinct authors behind these posts (at most
+        // LIVE_FEED_LIMIT lookups, usually fewer since students repost).
+        // usersApi.byId is authedRequest - fine here, the whole page is
+        // behind ProtectedRoute. A failed lookup just leaves that author
+        // unresolved; CampusLiveFeed falls back to a generic label for it.
+        const uniqueAuthorIds = [
+          ...new Set(recent.map((post) => post.authorId)),
+        ];
+        const authorEntries = await Promise.all(
+          uniqueAuthorIds.map(
+            async (authorId): Promise<[number, string] | null> => {
+              try {
+                const author = await usersApi.byId(authorId);
+                const name: string = `${author.firstName} ${author.lastName}`;
+                return [authorId, name];
+              } catch {
+                return null;
+              }
+            },
+          ),
+        );
+        if (cancelled) return;
+
+        const resolved: Record<number, string> = {};
+        for (const entry of authorEntries) {
+          if (entry !== null) resolved[entry[0]] = entry[1];
+        }
+        setAuthorNames(resolved);
+      } catch {
+        // The live feed is non-critical chrome; fail quietly to an empty list
+        // rather than surfacing an error banner over the whole page.
+        if (!cancelled) setLivePosts([]);
+      }
+    }
+
     loadReferenceData();
+    loadLiveFeed();
     return () => {
       cancelled = true;
     };
@@ -394,7 +458,11 @@ export function FeedPage() {
 
         <aside className="hidden w-80 shrink-0 space-y-4 xl:block">
           <div className="sticky top-24 space-y-4">
-            <CampusLiveFeed />
+            <CampusLiveFeed
+              posts={livePosts ?? []}
+              authorNames={authorNames}
+              loading={livePosts === null}
+            />
             <SafeExchangeCard />
           </div>
         </aside>
