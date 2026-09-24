@@ -7,6 +7,8 @@ Components used only by /wallet and /purchases live here.
 | File | |
 |---|---|
 | `TopUpForm.tsx` | Starts a PayFast top-up |
+| `SendMoneyForm.tsx` | Sends money to another student by email |
+| `ConfirmSendModal.tsx` | The confirm-then-"Money sent" popup for a transfer |
 | `money.ts` | `formatZar` and amount validation |
 
 ## Two rules
@@ -19,8 +21,11 @@ All money maths belongs on the server, where it stays exact in `BigDecimal`.
 moment they buy, so show "Available · In escrow · Total" and never subtract
 `held` from `available` — that deducts it twice.
 
-`TopUpForm` renders the PayFast response as a hidden self-submitting form rather
+`TopUpForm` posts the PayFast response as a hidden self-submitting form rather
 than building a redirect URL, because the signature covers the field values and
-re-encoding anything gets the payment rejected. Nothing it does credits the
+re-encoding anything gets the payment rejected. The form is built with
+`document.createElement`, not JSX: a JSX form rendered after `setState` may not
+be committed yet when you submit it, and a null ref submits nothing silently —
+the button just spins. Nothing it does credits the
 wallet: only PayFast's server-to-server callback moves money, which is why
 `WalletPage` polls the balance afterwards instead of assuming success.

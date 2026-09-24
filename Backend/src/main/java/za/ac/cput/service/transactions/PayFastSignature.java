@@ -27,7 +27,9 @@
   - Fields are signed in the order they are SENT, not alphabetically. (The
     subscription/refund REST API signs alphabetically; the redirect form does
     not. Do not share code between them.)
-  - Empty values are skipped entirely, and the passphrase is appended LAST.
+  - On the redirect, empty values are skipped entirely. On the ITN they are NOT -
+    PayFast posts many empty fields (custom_str1= ...) and signs them all.
+  - The passphrase is appended LAST.
 
  Author: Mogamat Yaseen Kannemeyer 240453182
  Date: 24 September 2026
@@ -84,14 +86,24 @@ public final class PayFastSignature {
      * the signature cannot be part of what it signs.
      */
     public static String signNotification(LinkedHashMap<String, String> posted, String passphrase) {
-        LinkedHashMap<String, String> signable = new LinkedHashMap<>();
+        // Unlike the redirect, the ITN check keeps empty values and does not trim:
+        // PayFast's reference validator hashes every field before "signature" as sent.
+        StringBuilder builder = new StringBuilder();
         for (Map.Entry<String, String> entry : posted.entrySet()) {
             if ("signature".equals(entry.getKey())) {
                 break;
             }
-            signable.put(entry.getKey(), entry.getValue());
+            String value = entry.getValue() == null ? "" : entry.getValue();
+            builder.append(entry.getKey()).append('=').append(phpUrlEncode(value)).append('&');
         }
-        return sign(signable, passphrase);
+
+        if (passphrase != null && !passphrase.isBlank()) {
+            builder.append("passphrase=").append(phpUrlEncode(passphrase.trim()));
+        } else if (!builder.isEmpty()) {
+            builder.setLength(builder.length() - 1);
+        }
+
+        return md5(builder.toString());
     }
 
     /**

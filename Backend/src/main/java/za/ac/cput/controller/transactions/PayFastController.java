@@ -60,6 +60,7 @@ public class PayFastController {
              leaves the body empty here.
             */
             String raw = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
+            log.info("PayFast ITN received from {} ({} bytes)", request.getRemoteAddr(), raw.length());
             this.payFastService.handleNotification(parseOrdered(raw), request.getRemoteAddr());
         } catch (IOException e) {
             log.warn("Could not read PayFast ITN body: {}", e.getMessage());

@@ -101,4 +101,26 @@ class PayFastSignatureTest {
                 PayFastSignature.signNotification(posted, null));
     }
 
+    @Test
+    void notificationSignatureKeepsEmptyValues() {
+        LinkedHashMap<String, String> posted = new LinkedHashMap<>();
+        posted.put("m_payment_id", "abc");
+        posted.put("custom_str1", "");
+        posted.put("amount_gross", "100.00");
+        posted.put("signature", "whatever-payfast-sent");
+
+        // PayFast's ITN validator hashes "custom_str1=" too; dropping it breaks every real ITN.
+        String expected = md5Hex("m_payment_id=abc&custom_str1=&amount_gross=100.00");
+        assertEquals(expected, PayFastSignature.signNotification(posted, null));
+    }
+
+    private static String md5Hex(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("MD5")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
 }
