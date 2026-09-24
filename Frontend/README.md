@@ -16,8 +16,13 @@ up your page and write the UI.
 | Create listing | **Mogamat Wazeer Gilbert** (221374698) | `/listings/new` | `pages/CreateListingPage.tsx` | `lib/api/listings.ts` |
 | User profile | **Raul Ja'aim Everts** (230270565) | `/profile`, `/profile/:userId` | `pages/ProfilePage.tsx` | `lib/api/users.ts` |
 | Notifications | *unassigned* | `/notifications` | `pages/NotificationsPage.tsx` | `lib/api/notifications.ts` |
-| Message chat | *unassigned* | `/messages`, `/messages/:conversationId` | `pages/MessagesPage.tsx`, `pages/ChatPage.tsx` | `lib/api/messages.ts` |
+| Message chat | Yaseen Kannemeyer (240453182) | `/messages`, `/messages/:conversationId` | `pages/MessagesPage.tsx`, `pages/ChatPage.tsx` | `lib/api/chat.ts` |
+| Wallet & purchases | Yaseen Kannemeyer (240453182) | `/wallet`, `/purchases` | `pages/WalletPage.tsx`, `pages/PurchasesPage.tsx` | `lib/api/wallet.ts` |
 | Campus bulletin | *unassigned* | `/bulletin` | `pages/BulletinPage.tsx` | `lib/api/bulletin.ts` |
+
+> `lib/api/messages.ts` is gone. The backend's raw `/api/messages` CRUD is now
+> ADMIN-only (it let any signed-in student read anyone's thread), so chat goes
+> through `lib/api/chat.ts` and `/api/chat/**` instead.
 
 Each owner also has `src/components/<feature>/` for components only their page uses.
 
@@ -156,8 +161,30 @@ src/
 
 Routes: `/` redirects by auth state · `/login` `/signup` `/verify` (public) ·
 `/feed` `/listings/new` `/listings/:listingId` `/profile` `/profile/:userId`
-`/notifications` `/messages` `/messages/:conversationId` `/bulletin` (protected) ·
-anything else shows the 404 page.
+`/notifications` `/messages` `/messages/:conversationId` `/bulletin` `/wallet`
+`/purchases` (protected) · anything else shows the 404 page.
+
+`/wallet` and `/purchases` are reached from the wallet icon in `TopBar`, not from
+`NAV_ITEMS` — the mobile tab bar already holds five destinations and a sixth
+makes each one too narrow to tap reliably.
+
+## Three things that will bite you in chat and wallet code
+
+**Money arrives as a JSON number, not a string.** Jackson serialises the
+backend's `BigDecimal` that way, same as the existing `Listing.price`. Display
+and compare it freely, but never do arithmetic and send the result back — all
+money maths belongs on the server, where it stays exact.
+
+**Attachment URLs are already signed.** They come back from the API pre-signed,
+short-lived and bound to you as the viewer, so they go straight into an
+`img`/`audio`/`video` `src`. Do **not** prefix `BASE_URL`, and do not stash them
+in component state across polls — they rotate about every half hour.
+
+**Don't call a setState-ing function directly in an effect body.** The React
+Compiler lint rule rejects it. Use the inline promise-chain shape the rest of the
+app uses; a timer or event callback is fine. Where state needs resetting because
+a route param changed, key the component instead — see how `ChatPage` renders
+`<ChatThread key={threadId} />` rather than clearing state in an effect.
 
 ## Design tokens
 

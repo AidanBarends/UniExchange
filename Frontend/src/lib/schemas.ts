@@ -95,12 +95,16 @@ export const createListingSchema = z.object({
         message: "Please enter a valid positive number",
       },
     ),
+  // Neither .optional() nor .default("") here, on purpose. Together they make
+  // zod's INPUT type `string | undefined` while z.infer reports the OUTPUT type
+  // `string`, and zodResolver types the form from the input - so useForm and
+  // handleSubmit disagreed and `npx tsc -b` failed. The field is already given
+  // an empty string by the form's defaultValues, so a plain optional-by-content
+  // string is both simpler and accurate.
   description: z
     .string()
     .trim()
-    .max(2000, "Description cannot exceed 2000 characters")
-    .optional()
-    .default(""),
+    .max(2000, "Description cannot exceed 2000 characters"),
 });
 
 export const bulletinPostSchema = z.object({

@@ -1,5 +1,5 @@
 /*
-  The five tab icons plus the notification bell.
+  The five tab icons, the notification bell and the wallet.
 
   Hand-written rather than an icon package, matching Logo and Button: 24x24
   viewBox, fill="none", stroke="currentColor", strokeWidth 2, rounded caps.
@@ -69,6 +69,16 @@ export function BellIcon({ className = 'size-5' }: IconProps) {
     <svg {...BASE} className={className}>
       <path d="M18 8a6 6 0 0 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" />
       <path d="M10.5 20a2 2 0 0 0 3 0" />
+    </svg>
+  )
+}
+
+export function WalletIcon({ className = 'size-5' }: IconProps) {
+  return (
+    <svg {...BASE} className={className}>
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18a2 2 0 0 1 2 2v1" />
+      <path d="M3 7.5V17a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2.5" />
+      <path d="M21 14.5h-4a2.5 2.5 0 0 1 0-5h4z" />
     </svg>
   )
 }

@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/Button";
 import { notificationsApi } from "@/lib/api/notifications";
 import { onNotificationsChanged } from "@/lib/notificationEvents";
 
-import { BellIcon } from "./NavIcons";
+import { BellIcon, WalletIcon } from "./NavIcons";
 import { Logo } from "./Logo";
 import { NAV_ITEMS } from "./navigation";
 
@@ -33,6 +33,7 @@ export function TopBar() {
   const { signOut, session } = useAuth();
   const { pathname } = useLocation();
   const onNotifications = pathname.startsWith("/notifications");
+  const onWallet = pathname.startsWith("/wallet") || pathname.startsWith("/purchases");
   const userId = session?.userId;
 
   const [hasUnread, setHasUnread] = useState(false);
@@ -99,6 +100,23 @@ export function TopBar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1">
+          {/* Wallet lives here rather than in NAV_ITEMS: the mobile tab bar
+              already holds five destinations and a sixth makes each one too
+              narrow to hit reliably. */}
+          <Link
+            to="/wallet"
+            aria-label="Wallet"
+            aria-current={onWallet ? "page" : undefined}
+            className={
+              "rounded-lg p-2 transition " +
+              (onWallet
+                ? "bg-brand-50 text-brand-800"
+                : "text-ink-500 hover:bg-gray-50 hover:text-ink-900")
+            }
+          >
+            <WalletIcon className="size-5" />
+          </Link>
+
           <Link
             to="/notifications"
             aria-label={hasUnread ? "Notifications (unread)" : "Notifications"}

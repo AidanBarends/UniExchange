@@ -90,6 +90,32 @@ public class Helper {
         return value != null && value.compareTo(BigDecimal.ZERO) >= 0;
     }
 
+    /*
+     Validate an amount of money that is about to MOVE - a top-up, a purchase,
+     a credit or a debit. Stricter than isValidBigDecimal in two ways that both
+     matter, and both have bitten this codebase:
+
+       1. Strictly positive. isValidBigDecimal permits zero and, because
+          WalletServiceImpl.debit() negates its argument before checking, it
+          also permitted a NEGATIVE debit - which increased the balance while
+          writing a ledger row labelled DEBIT. Free money, and a ledger that
+          looked consistent. A moving amount is never zero and never negative;
+          direction is the caller's job (credit vs debit), not the sign's.
+
+       2. At most 2 decimal places. wallet.balance is DECIMAL(10,2), but
+          balance.add(delta) in Java keeps the LARGER scale. An amount of
+          10.005 therefore produces a balanceAfter of scale 3 in the ledger
+          while MySQL rounds the balance column to 2 - so the ledger and the
+          balance silently disagree and the wallet can no longer be reconciled.
+
+     Use this for every amount that changes a balance. isValidBigDecimal stays
+     for stored, at-rest values such as a listing price or an existing balance,
+     where zero is legitimate.
+    */
+    public static boolean isPositiveMoney(BigDecimal value) {
+        return value != null && value.signum() > 0 && value.scale() <= 2;
+    }
+
     // Validate rating - must be between 1 and 5 (review.rating - BR-045)
     public static boolean isValidRating(int rating) {
         return rating >= 1 && rating <= 5;

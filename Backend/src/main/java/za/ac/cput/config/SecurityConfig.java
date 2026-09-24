@@ -89,9 +89,54 @@ public class SecurityConfig {
                                 "/api/campuses/**",
                                 "/api/bulletin-posts/**",
                                 "/api/bulletin-post-images/**",
-                                "/uploads/**").permitAll()
+                                "/uploads/**",
+                                // A seller's rating and badge are shown on every listing card
+                                // and on public profiles, so they must be readable signed-out.
+                                // Writing a review is POST, which falls through to the
+                                // ADMIN/authenticated rules below.
+                                "/api/reviews/reviewee/**",
+                                "/api/trusted-seller-badges/user/**").permitAll()
+                        /*
+                         Chat attachments. permitAll here is not "public": <img>, <audio>
+                         and <video> cannot send an Authorization header, so a filter-chain
+                         rule would 401 every media tag on the page. ChatMediaController
+                         instead verifies an HMAC signature bound to (mediaId, viewerId,
+                         expiry) AND re-checks conversation participation on every request,
+                         which is strictly stronger than "any signed-in student".
+                        */
+                        .requestMatchers(HttpMethod.GET, "/api/chat/media/**").permitAll()
+                        /*
+                         PayFast's server-to-server callback carries no JWT. Without this it
+                         would 401 on every delivery, PayFast would retry forever, and no
+                         top-up would ever be credited. The handler authenticates the caller
+                         itself: signature, source IP, and a confirmation POST back to PayFast.
+                        */
+                        .requestMatchers(HttpMethod.POST, "/api/payfast/itn").permitAll()
                         .requestMatchers("/api/audit-logs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/reports/**").hasRole("ADMIN")
+                        /*
+                         The generic CRUD controllers for money, chat and trust are ADMIN-only.
+                         They take ids straight from the request body with no ownership check,
+                         so while merely "authenticated" any student could credit their own
+                         wallet, read anyone's private messages, forge reviews or grant
+                         themselves a Trusted Seller badge.
+
+                         Real use goes through the authorization-aware flow controllers
+                         instead: /api/chat, /api/wallet, /api/purchases, and POST /api/reviews.
+                         Keep new endpoints out of these prefixes.
+                        */
+                        .requestMatchers("/api/wallets/**",
+                                "/api/wallet-transactions/**",
+                                "/api/payments/**",
+                                "/api/transactions/**",
+                                "/api/conversations/**",
+                                "/api/conversation-participants/**",
+                                "/api/messages/**",
+                                "/api/trusted-seller-badges/**").hasRole("ADMIN")
+                        // Reviews: anyone signed in may POST one (ReviewController checks they
+                        // were party to a COMPLETED transaction); editing and deleting are ADMIN.
+                        .requestMatchers(HttpMethod.PUT, "/api/reviews/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/reviews/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(this.jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -129,8 +174,16 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isEmpty())
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        config.setExposedHeaders(List.of("Authorization"));
+        /*
+         Range is here so a range-aware fetch() stays possible. Media elements
+         (<img>/<audio>/<video> without crossorigin) issue no-CORS requests and are
+         unaffected either way, but the moment anything reads media through fetch or
+         adds crossorigin="anonymous", a missing Range entry turns into a preflight
+         403 with an unhelpful console message. The exposed range headers are what
+         let script see Content-Range/Accept-Ranges on the response.
+        */
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Range"));
+        config.setExposedHeaders(List.of("Authorization", "Accept-Ranges", "Content-Range", "Content-Length"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

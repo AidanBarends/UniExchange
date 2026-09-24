@@ -34,6 +34,10 @@ build/
 
 # Local, untracked config overrides (may contain your DB password)
 src/main/resources/application-local.properties
+src/test/resources/application-local.properties
 
 # Files saved by UploadController (see app.uploads.dir)
 /uploads/
+
+# Chat attachments (see app.chat.media.dir). Private - never served from /uploads/**.
+/chat-media/

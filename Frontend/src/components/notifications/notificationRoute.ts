@@ -9,7 +9,7 @@
     MESSAGE     -> /messages/:entityId   ("Open Conversation")
     LISTING     -> /listings/:entityId   ("View Listing")
     BULLETIN    -> /bulletin             ("View on Bulletin")
-    TRANSACTION -> no route yet (no /transactions page in App.tsx)
+    TRANSACTION -> /purchases            ("View Purchase")
     SYSTEM      -> no route
 
   When this returns null, the row/modal should just mark the notification
@@ -39,6 +39,10 @@ export function notificationRoute(
     case "BULLETIN":
       return { path: "/bulletin", label: "View on Bulletin" };
     case "TRANSACTION":
+      // /purchases rather than a per-transaction page: entityId is a transaction
+      // id, and the list is where the buyer confirms receipt or leaves a review,
+      // which is what these notifications are prompting for.
+      return { path: "/purchases", label: "View Purchase" };
     case "SYSTEM":
       return null;
   }

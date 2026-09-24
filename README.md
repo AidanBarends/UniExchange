@@ -213,6 +213,21 @@ This is also where SMTP credentials go — see
 
 > If your MySQL `root` account has no password, skip this step — the default is empty.
 
+### 3b. Seed the campuses and categories
+
+Hibernate creates the tables but never puts rows in them, so on a fresh database
+the **Create listing** form has empty Campus and Category dropdowns and cannot be
+submitted — which makes the whole marketplace look broken when it is only
+unseeded. Run this once:
+
+```bash
+cd Backend
+mysql -u root -p uniexchange < src/main/resources/db/seed-reference-data.sql
+```
+
+It adds the five CPUT campuses and nine listing categories, and is safe to run
+again — every statement does nothing if the row is already there.
+
 ### 4. Run the backend
 
 ```bash
@@ -451,12 +466,12 @@ Entities expose only a nested fluent `Builder` (with `copy()` and `build()`), a 
 |---|---|
 | `identity` | Campus, Role, User, UserRole, Verification |
 | `marketplace` | Category, Listing, ListingImage |
-| `communication` | Conversation, ConversationParticipant, Message, Notification |
+| `communication` | Conversation, ConversationParticipant, Message, **ChatMedia**, Notification |
 | `trust` | Review, Report, VendorApplication, TrustedSellerBadge |
-| `transactions` | Transaction, Payment, Wallet, WalletTransaction |
+| `transactions` | Transaction, Payment, Wallet, WalletTransaction, **WalletTopUp** |
 | `community` | BulletinPost |
 | `admin` | AuditLog |
-| `enums` | 13 enums matching the MySQL `ENUM` columns |
+| `enums` | 14 enums matching the MySQL `ENUM` columns |
 
 Foreign keys are modelled as plain scalar `long` columns (`Listing.sellerId`, not `Listing.seller`) — there are no JPA relationship annotations anywhere.
 
@@ -504,7 +519,131 @@ halves cannot drift apart.
 > Because a wrong password is rejected before any of this, `/login` can never be used to
 > send someone an unwanted email.
 
-Every other entity has standard CRUD at `/api/<plural-name>` — e.g. `GET /api/listings`, `POST /api/campuses`. `GET` on listings, listing images, categories, campuses and bulletin posts is public; everything else needs a token; audit logs and reports are `ADMIN` only.
+Every other entity has standard CRUD at `/api/<plural-name>` — e.g. `GET /api/listings`, `POST /api/campuses`. `GET` on listings, listing images, categories, campuses, bulletin posts, seller ratings and badges is public; everything else needs a token.
+
+**`ADMIN` only:** audit logs, reports, and the generic CRUD for money, chat and
+trust — `/api/wallets`, `/api/wallet-transactions`, `/api/payments`,
+`/api/transactions`, `/api/conversations`, `/api/conversation-participants`,
+`/api/messages`, `/api/trusted-seller-badges`. Those controllers take ids
+straight from the request body with no ownership check, so while they were merely
+"authenticated" any signed-in student could credit their own wallet, read
+anyone's private messages or grant themselves a Trusted Seller badge. Real use
+goes through the authorization-aware flow controllers instead — `/api/chat`,
+`/api/wallet`, `/api/purchases` and `POST /api/reviews`. **Keep new endpoints out
+of those ADMIN-only prefixes.**
+
+### Messaging, wallet and trust
+
+The three features that turn the marketplace into somewhere two students can
+actually complete a deal. All of them resolve the acting student from the JWT -
+**an id in the URL or body is never enough on its own**.
+
+#### Chat — `/api/chat`
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/chat/threads` | The inbox: other participant, listing, last message and unread count, assembled server-side |
+| `POST /api/chat/threads` | `{otherUserId, listingId?}` → find-or-create. Safe to call twice |
+| `GET /api/chat/threads/{id}/messages?afterMessageId=` | The poll. Returns `[]` when nothing is new |
+| `POST /api/chat/threads/{id}/messages` | `{content?, mediaId?}` — at least one required |
+| `POST /api/chat/threads/{id}/media` | multipart upload → `{mediaId}`, sent with the next message |
+| `POST /api/chat/threads/{id}/read` · `GET /api/chat/unread-count` | Read receipts and the nav badge |
+
+**Delivery is polling, not WebSockets.** The app is deployed to Azure App Service,
+where the cheaper tiers unload an idle app after ~20 minutes and drop every
+persistent connection, and where scaling out would break an in-memory STOMP
+broker. The `afterMessageId` cursor makes each poll cheap and is the same shape a
+push implementation would use later.
+
+**Attachments are private.** They are stored outside the public `/uploads/**`
+tree and served by `GET /api/chat/media/{id}?u=&exp=&sig=`, which verifies an
+HMAC bound to `(mediaId, viewerId, expiry)` *and* re-checks conversation
+membership on every request. That endpoint is `permitAll` in `SecurityConfig` out
+of necessity, not laxity: `<img>`, `<audio>` and `<video>` cannot send an
+`Authorization` header, so a filter-chain rule would 401 every attachment on the
+page.
+
+Voice notes are recorded in the browser with `MediaRecorder`. Two things about
+that are worth knowing before touching it: Safari records **MP4/AAC** and cannot
+produce WebM, so the format is negotiated and read back from the recorder; and
+the resulting container has **no duration**, so `audio.duration` is `Infinity`
+and the UI draws its own progress bar from a `durationMs` measured while
+recording.
+
+#### Wallet and escrow — `/api/wallet`, `/api/purchases`
+
+Buying debits the buyer immediately and holds the funds; the seller is paid only
+when the buyer confirms receipt. **There is no `held_balance` column** — money in
+escrow is simply a `Transaction` in `PENDING`, so the reconciliation identity is:
+
+    sum(wallet.balance) + sum(PENDING transaction amounts) == sum(completed top-ups)
+
+Because of that, `available` is already net of anything held. Show
+"Available · In escrow · Total"; never subtract one from the other.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/wallet` · `GET /api/wallet/ledger` | Balance (+ escrow) and the full audit trail |
+| `POST /api/wallet/topup` | Returns the signed PayFast form fields to POST |
+| `POST /api/payfast/itn` | PayFast's callback. **`permitAll`** — it carries no JWT |
+| `POST /api/purchases` | Buy a listing; money is held |
+| `POST /api/purchases/{id}/confirm` | Buyer confirms receipt — this is what pays the seller |
+| `POST /api/purchases/{id}/cancel` | Either party cancels; the buyer is refunded in full |
+
+Unconfirmed escrows are auto-released after `app.escrow.auto-release-days` so a
+forgetful buyer cannot freeze a seller's money forever.
+
+Two things in the money path are load-bearing and easy to undo by accident:
+
+- **Every balance change goes through `WalletServiceImpl.applyMovement`**, which
+  locks the row and then calls `entityManager.refresh(..., PESSIMISTIC_WRITE)`.
+  The refresh is not belt-and-braces: Hibernate will not re-read an entity
+  already in the persistence context, so without it you hold the lock and still
+  compute from a stale balance. `WalletMoneySafetyTest` fails with 10 successful
+  R80 debits against a R100 balance if you remove it.
+- **Status changes are compare-and-set**, never read-then-write. The row count is
+  the authority. This is what stops two "I received it" clicks paying a seller
+  twice, and two buyers claiming the same listing.
+
+PayFast is in sandbox mode by default, with their published test merchant
+(`10000100` / `46f0cd694581a`) — public test values, not secrets. One trap worth
+repeating: the signature is an MD5 over PHP-`urlencode`d values, and Java's
+`URLEncoder` leaves `*` literal where PHP writes `%2A`, so
+`PayFastSignature.phpUrlEncode` exists and must be used.
+
+**Demonstrating the wallet locally.** PayFast confirms a payment by calling
+`notify_url` from their servers, and that can never reach `localhost` — so on a
+laptop a top-up starts and the money never arrives. Two ways round it:
+
+- run a tunnel (`ngrok http 8080`), put the public URL in
+  `app.payfast.notify-url`, and set `app.payfast.validate-source-ip=false`
+  (the peer address is then the tunnel's, not PayFast's); or
+- set `app.payfast.simulator.enabled=true` and complete the top-up yourself with
+  `POST /api/dev/payfast/complete/{m_payment_id}`, which runs the same crediting
+  path the real callback does.
+
+That simulator credits wallets, so it is gated three ways — the property, which
+defaults to false; `@Profile("!prod")`; and `ADMIN` in `SecurityConfig`. Do not
+enable it anywhere it can be reached. Once deployed to Azure the real callback
+works, because the URL is then public.
+
+#### Reviews and the Trusted Seller badge
+
+A review may only be written by someone who completed a transaction with the
+person being rated, and the request body carries **no reviewee** — it is derived
+from the transaction, so there is nothing to forge.
+
+The badge is earned at **5 completed sales to 5 different buyers**, each rated at
+least 4, while the overall average stays at or above the floor (all three are
+properties under `app.trust.badge.*`). Every clause closes a way of farming it:
+distinct buyers stops one friend buying five times, the average floor stops five
+good reviews outweighing twenty bad ones, and a unique constraint on
+`(transaction_id, reviewer_id)` stops one buyer stacking five reviews on one
+sale. It is revoked automatically if the average later falls through the floor.
+
+> `ddl-auto=update` **silently skips** creating that unique constraint if the
+> table already contains duplicates. Check with
+> `SELECT transaction_id, reviewer_id, COUNT(*) FROM review GROUP BY 1,2 HAVING COUNT(*) > 1;`
 
 ### Error format
 
@@ -564,7 +703,7 @@ npx tsc -b        # type-check only
 
 ## Testing
 
-### Backend — 67 tests, no MySQL or SMTP required
+### Backend — 140 tests, no MySQL or SMTP required
 
 ```bash
 cd Backend
@@ -639,5 +778,5 @@ auto-detects the dialect from the live connection, which is why
 1. **Done** — full backend layering (`domain → repository → factory → service → controller`), Spring Security + JWT, and verified-student auth with email OTP.
 2. **Done** — frontend signup, OTP verification and login (React 19 + TypeScript + Tailwind v4 + react-router 7), plus the shared app shell and a routed, owner-assigned stub for every remaining page.
 3. **In progress** — the team building out feed, product details, create listing, profile, notifications, messaging and the bulletin board.
-4. **Then** — messaging, wallet, reviews and trusted-seller badges, campus bulletin board.
+4. **Done** — messaging (with photo, video and voice-note attachments), the wallet with PayFast-funded top-ups and escrow purchases, reviews, and the Trusted Seller badge. See "Messaging, wallet and trust" below.
 5. **Later** — Swagger/OpenAPI docs (springdoc 3.x, already a commented-out placeholder in `pom.xml`); authenticator-app TOTP as a login second factor; optional "Sign in with Microsoft" via Entra ID.
