@@ -35,12 +35,24 @@ public class TransactionFactory {
             throw new IllegalArgumentException("Transaction: sellerId must be a positive id");
         }
 
+        // The README documents buyer != seller as a database CHECK, but CHECK
+        // constraints are only ever emitted at CREATE TABLE, so it does not exist on
+        // any database built before it was written down. Enforcing it here means the
+        // rule actually holds. Self-dealing would otherwise be a way to manufacture
+        // "completed sales" towards a Trusted Seller badge.
+        if (buyerId == sellerId) {
+            throw new IllegalArgumentException("Transaction: the buyer and seller cannot be the same person");
+        }
+
         if (!Helper.isValidId(listingId)) {
             throw new IllegalArgumentException("Transaction: listingId must be a positive id");
         }
 
-        if (!Helper.isValidBigDecimal(amount)) {
-            throw new IllegalArgumentException("Transaction: amount must be a non-negative amount");
+        // isPositiveMoney, not isValidBigDecimal: a zero-amount transaction is not a
+        // sale, and a scale above 2 would leave the wallet ledger disagreeing with
+        // the DECIMAL(10,2) balance column.
+        if (!Helper.isPositiveMoney(amount)) {
+            throw new IllegalArgumentException("Transaction: amount must be greater than zero");
         }
 
         if (!Helper.isValidObject(paymentMethod)) {
@@ -79,12 +91,24 @@ public class TransactionFactory {
             throw new IllegalArgumentException("Transaction: sellerId must be a positive id");
         }
 
+        // The README documents buyer != seller as a database CHECK, but CHECK
+        // constraints are only ever emitted at CREATE TABLE, so it does not exist on
+        // any database built before it was written down. Enforcing it here means the
+        // rule actually holds. Self-dealing would otherwise be a way to manufacture
+        // "completed sales" towards a Trusted Seller badge.
+        if (buyerId == sellerId) {
+            throw new IllegalArgumentException("Transaction: the buyer and seller cannot be the same person");
+        }
+
         if (!Helper.isValidId(listingId)) {
             throw new IllegalArgumentException("Transaction: listingId must be a positive id");
         }
 
-        if (!Helper.isValidBigDecimal(amount)) {
-            throw new IllegalArgumentException("Transaction: amount must be a non-negative amount");
+        // isPositiveMoney, not isValidBigDecimal: a zero-amount transaction is not a
+        // sale, and a scale above 2 would leave the wallet ledger disagreeing with
+        // the DECIMAL(10,2) balance column.
+        if (!Helper.isPositiveMoney(amount)) {
+            throw new IllegalArgumentException("Transaction: amount must be greater than zero");
         }
 
         if (!Helper.isValidObject(paymentMethod)) {

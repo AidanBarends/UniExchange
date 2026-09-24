@@ -25,8 +25,10 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Spinner } from '@/components/ui/Spinner'
+import { chatApi } from '@/lib/api/chat'
 import { ApiError, authedRequest } from '@/lib/api/client'
 import { listingsApi } from '@/lib/api/listings'
+import { purchasesApi } from '@/lib/api/wallet'
 import type { Campus, Category, Listing, ListingImage, ListingStatus, User } from '@/lib/api/types'
 import { usersApi } from '@/lib/api/users'
 
@@ -234,6 +236,47 @@ export function ListingDetailsPage() {
     }
   }
 
+  /*
+   Opens the thread with this seller about this listing.
+
+   This used to be navigate('/messages'), which dropped the student on an empty
+   inbox with no idea who they had been trying to contact. startThread is
+   find-or-create, so tapping it twice reuses the same conversation rather than
+   splitting the discussion across two threads.
+  */
+  const handleMessageSeller = async () => {
+    try {
+      const thread = await chatApi.startThread({
+        otherUserId: listing.sellerId,
+        listingId: listing.listingId,
+      })
+      navigate(`/messages/${thread.conversationId}`)
+    } catch (error) {
+      setActionError(
+        error instanceof ApiError ? error.message : 'Could not open a conversation with the seller.',
+      )
+    }
+  }
+
+  /*
+   Buys the listing with wallet money, held in escrow until the buyer confirms
+   the item arrived. expectedAmount is the price shown on this page, which the
+   backend re-checks so a seller cannot change it mid-purchase.
+  */
+  const handleBuy = async () => {
+    setActionError(null)
+    try {
+      await purchasesApi.buy(listing.listingId, listing.price)
+      navigate('/purchases')
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'INSUFFICIENT_FUNDS') {
+        setActionError('You do not have enough in your wallet. Top up and try again.')
+        return
+      }
+      setActionError(error instanceof ApiError ? error.message : 'Could not complete that purchase.')
+    }
+  }
+
   const handleShare = async (): Promise<'shared' | 'copied' | 'cancelled'> => {
     const url = window.location.href
     if (navigator.share) {
@@ -293,9 +336,20 @@ export function ListingDetailsPage() {
             reviewCount={reviewCount}
             trusted={trusted}
             showMessageAction={!isOwner}
-            onMessage={() => navigate('/messages')}
+            onMessage={handleMessageSeller}
             onShare={handleShare}
           />
+
+          {/* Only for an item still on sale that is not your own. */}
+          {!isOwner && listing.status === 'ACTIVE' && (
+            <Card>
+              <Button onClick={handleBuy}>Buy with wallet</Button>
+              <p className="mt-2 text-xs text-ink-500">
+                Your money is held until you confirm the item arrived, then released to the
+                seller.
+              </p>
+            </Card>
+          )}
 
           {isOwner && (
             <ListingOwnerActions listing={listing} onMarkSold={handleMarkSold} onDelete={handleDelete} />

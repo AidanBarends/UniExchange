@@ -22,9 +22,23 @@ public class ConversationFactory {
     private ConversationFactory() {}
 
     public static Conversation createConversation() {
+        return createConversation(null);
+    }
+
+    /**
+     * A conversation optionally attached to the listing it is about.
+     *
+     * @param listingId the listing being discussed, or null for a general chat
+     */
+    public static Conversation createConversation(Long listingId) {
+        if (listingId != null && !Helper.isValidId(listingId)) {
+            throw new IllegalArgumentException("Conversation: listingId must be a positive id when supplied");
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
         return new Conversation.Builder()
+                .setListingId(listingId)
                 .setCreatedAt(now)
                 .build();
     }

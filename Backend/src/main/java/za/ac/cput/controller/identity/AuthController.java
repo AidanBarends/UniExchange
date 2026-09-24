@@ -71,6 +71,7 @@ import za.ac.cput.service.identity.IRoleService;
 import za.ac.cput.service.identity.IUserRoleService;
 import za.ac.cput.service.identity.IUserService;
 import za.ac.cput.service.identity.OtpService;
+import za.ac.cput.service.transactions.IWalletService;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -87,6 +88,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final IWalletService walletService;
 
     public AuthController(IUserService userService,
                           IRoleService roleService,
@@ -96,7 +98,9 @@ public class AuthController {
                           EmailSender emailSender,
                           AuthenticationManager authenticationManager,
                           PasswordEncoder passwordEncoder,
-                          JwtService jwtService) {
+                          JwtService jwtService,
+                          IWalletService walletService) {
+        this.walletService = walletService;
         this.userService = userService;
         this.roleService = roleService;
         this.userRoleService = userRoleService;
@@ -129,6 +133,17 @@ public class AuthController {
                 request.campusId()));
 
         this.userRoleService.assignRole(created.getUserId(), defaultRole().getRoleId());
+
+        /*
+         Every student gets a wallet at registration, with a zero balance.
+
+         Creating it lazily on first use looks tidier but is a money bug waiting to
+         happen: releasing an escrow credits the SELLER, and if that seller had
+         never opened the wallet page there would be no row to credit. The buyer
+         would already have been debited. A row that costs nothing and always
+         exists removes that entire failure mode.
+        */
+        this.walletService.getOrCreateForUser(created.getUserId());
 
         sendCode(created);
 

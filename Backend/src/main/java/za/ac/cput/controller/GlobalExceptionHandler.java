@@ -22,6 +22,10 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import za.ac.cput.exception.ConflictException;
+import za.ac.cput.exception.InsufficientFundsException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -65,6 +69,41 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleUnavailable(IllegalStateException ex) {
         // Raised when the verification email could not be delivered.
         return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
+    /*
+     409, not 400: the request was well formed, it just lost a race - the listing
+     was bought by someone else, or this transaction was already confirmed. The
+     code tells the frontend which message to show.
+    */
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
+        Map<String, Object> body = base(HttpStatus.CONFLICT, ex.getMessage());
+        body.put("code", ex.getCode());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ResponseEntity<Map<String, Object>> handleInsufficientFunds(InsufficientFundsException ex) {
+        Map<String, Object> body = base(HttpStatus.CONFLICT,
+                "You do not have enough in your wallet for this purchase.");
+        body.put("code", "INSUFFICIENT_FUNDS");
+        body.put("balance", ex.getBalance());
+        body.put("required", ex.getRequired());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /*
+     Without this, an oversized upload produces Tomcat's HTML error page with a
+     500 status. The frontend's safeJson() then shows that raw HTML to the
+     student as the error message. Note this only reaches us if
+     server.tomcat.max-swallow-size allows the rest of the body to be read -
+     see application.properties.
+    */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
+        // CONTENT_TOO_LARGE, not PAYLOAD_TOO_LARGE - the latter is deprecated in Spring 7.
+        return build(HttpStatus.CONTENT_TOO_LARGE, "That file is too large.");
     }
 
     @ExceptionHandler(AuthenticationException.class)

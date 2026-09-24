@@ -7,11 +7,17 @@
   greppable in one folder.
 
   Two constraints from the backend's SecurityConfig worth remembering:
-   - CORS allows ONLY the Authorization and Content-Type request headers.
-     Adding any custom header (X-Requested-With and friends) makes the
-     preflight fail with no useful error in the console.
+   - CORS allows ONLY the Authorization, Content-Type and Range request
+     headers. Adding any other custom header (X-Requested-With and friends)
+     makes the preflight fail with no useful error in the console.
    - Auth is a stateless bearer token. The backend reads no cookies, so
      credentials are never sent.
+
+  One consequence of that second point shows up in chat: an <img>, <audio> or
+  <video> tag cannot carry an Authorization header, so private attachments are
+  not fetched through this client at all. The backend hands back a pre-signed,
+  short-lived URL and the element loads it directly. Use those URLs exactly as
+  given - do not prefix BASE_URL or re-sign them.
 
   Author: Mogamat Yaseen Kannemeyer 240453182
 */
@@ -167,6 +173,75 @@ export async function authedUpload<T>(path: string, file: File): Promise<T> {
   }
 
   return payload as T
+}
+
+/**
+ * Uploads a file with extra form fields and real progress reporting.
+ *
+ * XMLHttpRequest rather than fetch, and not by preference: fetch has no upload
+ * progress events at all. A 25MB video on campus wifi with no progress bar looks
+ * identical to a frozen page, so the student cancels and retries forever.
+ *
+ * Query values (rather than form fields) for the extras, because the backend
+ * reads them with @RequestParam alongside the @RequestPart file.
+ */
+export function authedUploadWithProgress<T>(
+  path: string,
+  file: File,
+  options: {
+    query?: RequestOptions['query']
+    onProgress?: (percent: number) => void
+    signal?: AbortSignal
+  } = {},
+): Promise<T> {
+  const { query, onProgress, signal } = options
+
+  return new Promise<T>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${BASE_URL}${path}${buildQuery(query)}`)
+
+    const token = currentToken()
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (event) => {
+        // lengthComputable is false for a chunked body; reporting 0 there is
+        // better than reporting a wrong number.
+        if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
+      })
+    }
+
+    xhr.addEventListener('load', () => {
+      const payload: unknown = xhr.responseText ? safeJson(xhr.responseText) : null
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as T)
+        return
+      }
+
+      const envelope = (payload ?? {}) as ErrorEnvelope
+      reject(
+        new ApiError(
+          xhr.status,
+          envelope.message ?? fallbackMessage(xhr.status),
+          envelope.fields ?? {},
+          envelope.code,
+        ),
+      )
+    })
+
+    xhr.addEventListener('error', () =>
+      reject(new ApiError(0, 'Cannot reach the UniExchange server. Is the backend running?')),
+    )
+    xhr.addEventListener('abort', () => reject(new ApiError(0, 'Upload cancelled.')))
+
+    signal?.addEventListener('abort', () => xhr.abort())
+
+    xhr.send(formData)
+  })
 }
 
 function buildQuery(query: RequestOptions['query']): string {

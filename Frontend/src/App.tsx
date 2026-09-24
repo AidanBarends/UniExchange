@@ -30,8 +30,10 @@ import { MessagesPage } from '@/pages/MessagesPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { NotificationsPage } from '@/pages/NotificationsPage'
 import { ProfilePage } from '@/pages/ProfilePage'
+import { PurchasesPage } from '@/pages/PurchasesPage'
 import { SignUpPage } from '@/pages/SignUpPage'
 import { VerifyOtpPage } from '@/pages/VerifyOtpPage'
+import { WalletPage } from '@/pages/WalletPage'
 
 export default function App() {
   const { isAuthenticated } = useAuth()
@@ -71,6 +73,11 @@ export default function App() {
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/messages/:conversationId" element={<ChatPage />} />
           <Route path="/bulletin" element={<BulletinPage />} />
+
+          {/* Wallet and escrow. Reached from the top bar and the profile rather
+              than the five-tab nav, which is already full. */}
+          <Route path="/wallet" element={<WalletPage />} />
+          <Route path="/purchases" element={<PurchasesPage />} />
         </Route>
       </Route>
 

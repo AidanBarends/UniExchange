@@ -14,12 +14,21 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/*
+ The composite index is what makes chat polling affordable. Every open thread
+ asks "messages in conversation X with id greater than Y" every few seconds;
+ without an index covering both columns that is a full scan of the message
+ table per poll, per user.
+*/
 @Entity
-@Table(name = "message")
+@Table(name = "message", indexes = {
+        @Index(name = "idx_message_conversation_id", columnList = "conversation_id, message_id")
+})
 public class Message {
     //  Variables/Attributes
     @Id

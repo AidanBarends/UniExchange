@@ -14,12 +14,31 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDateTime;
 
+/*
+ The unique constraint is load-bearing, not hygiene. Without it one buyer can
+ post five 5-star reviews against a single transaction and push a seller over the
+ Trusted Seller threshold from one sale.
+
+ NOTE: ddl-auto=update will SILENTLY SKIP creating this index if the table already
+ contains duplicate (transaction_id, reviewer_id) rows. Check before relying on it:
+   SELECT transaction_id, reviewer_id, COUNT(*) FROM review
+   GROUP BY 1,2 HAVING COUNT(*) > 1;
+*/
 @Entity
-@Table(name = "review")
+@Table(name = "review",
+        indexes = {
+                @Index(name = "idx_review_reviewee_rating", columnList = "reviewee_id, rating")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uq_review_txn_reviewer",
+                        columnNames = {"transaction_id", "reviewer_id"})
+        })
 public class Review {
     //  Variables/Attributes
     @Id

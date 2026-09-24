@@ -85,7 +85,10 @@ public class NotificationFactory {
                 .setContent(content)
                 .setEntityType(entityType)
                 .setEntityId(entityId)
-                .setRead(false)
+                // Deliberately NOT .setRead(false) - copy(existing) already carries the
+                // current flag. Forcing false here made every PUT silently mark a
+                // notification unread again, so a student who had read one saw the bell
+                // light up the moment anything else touched the row.
                 .build();
     }
 

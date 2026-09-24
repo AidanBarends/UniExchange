@@ -80,18 +80,28 @@ public class WalletController {
         return found == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(found);
     }
 
-    @PostMapping("/{id}/credit")
-    public ResponseEntity<Wallet> credit(@PathVariable Long id, @RequestParam BigDecimal amount,
+    /*
+     Manual balance adjustments, keyed on the USER rather than the wallet to match
+     IWalletService (see its header for why). ADMIN only - SecurityConfig restricts
+     this whole controller - because these move money with no transaction behind
+     them. Students top up through /api/wallet/topup and spend through
+     /api/purchases; neither goes anywhere near these two endpoints.
+
+     Ledger rows are tagged ADJUSTMENT so a manual correction is distinguishable
+     from a real sale when reconciling.
+    */
+    @PostMapping("/user/{userId}/credit")
+    public ResponseEntity<Wallet> credit(@PathVariable long userId, @RequestParam BigDecimal amount,
                                          @RequestParam(required = false) String description) {
-        Wallet updated = this.service.credit(id, amount, description);
-        return updated == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(updated);
+        return ResponseEntity.ok(this.service.credit(userId, amount, "ADJUSTMENT", null,
+                description == null ? "Administrative credit" : description));
     }
 
-    @PostMapping("/{id}/debit")
-    public ResponseEntity<Wallet> debit(@PathVariable Long id, @RequestParam BigDecimal amount,
+    @PostMapping("/user/{userId}/debit")
+    public ResponseEntity<Wallet> debit(@PathVariable long userId, @RequestParam BigDecimal amount,
                                         @RequestParam(required = false) String description) {
-        Wallet updated = this.service.debit(id, amount, description);
-        return updated == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(updated);
+        return ResponseEntity.ok(this.service.debit(userId, amount, "ADJUSTMENT", null,
+                description == null ? "Administrative debit" : description));
     }
 
 }

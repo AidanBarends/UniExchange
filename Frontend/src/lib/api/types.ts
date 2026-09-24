@@ -187,3 +187,144 @@ export type BulletinPostImage = {
   /** Sent as `isPrimary`, received as `primary` - see the note at the top. */
   primary: boolean
 }
+
+/* -------------------------------------------------------------------- chat */
+
+export type ChatMediaType = 'IMAGE' | 'VIDEO' | 'AUDIO'
+
+export type ChatMediaView = {
+  mediaId: number
+  mediaType: ChatMediaType
+  mimeType: string
+  /**
+   * Pre-signed, short-lived and bound to you as the viewer. Drop it straight
+   * into an img/audio/video src - do NOT prefix BASE_URL, and do not cache it in
+   * component state across polls, because it rotates roughly every half hour.
+   */
+  url: string
+  /**
+   * Milliseconds, for voice notes and video. Measured in the browser while
+   * recording, because a MediaRecorder blob reports Infinity for its duration -
+   * so render your own progress bar from this rather than trusting the element.
+   */
+  durationMs: number | null
+  sizeBytes: number
+  originalFilename: string | null
+}
+
+export type ChatMessageView = {
+  messageId: number
+  conversationId: number
+  senderId: number
+  /** Empty string for an attachment sent with no caption. */
+  content: string
+  sentAt: string
+  media: ChatMediaView | null
+}
+
+export type ChatParticipant = {
+  userId: number
+  firstName: string
+  lastName: string
+}
+
+export type ChatThreadView = {
+  conversationId: number
+  /** Null for a general chat, and for every conversation started before listings were linked. */
+  listingId: number | null
+  listingTitle: string | null
+  otherParticipant: ChatParticipant | null
+  lastMessagePreview: string | null
+  lastMessageAt: string | null
+  unreadCount: number
+}
+
+export type ChatMediaUploaded = {
+  mediaId: number
+  mediaType: ChatMediaType
+  durationMs: number | null
+}
+
+/* ------------------------------------------------------------ transactions */
+
+export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED'
+
+export type PaymentMethod = 'CASH' | 'WALLET' | 'PAYFAST' | 'SNAPSCAN'
+
+export type WalletTransactionType = 'CREDIT' | 'DEBIT' | 'REFUND' | 'ADJUSTMENT'
+
+/**
+ * Money arrives as a JSON number, not a string: Jackson serialises the
+ * backend's BigDecimal that way, and the existing Listing.price does the same.
+ *
+ * Safe to display and compare at marketplace amounts, but do NOT do arithmetic
+ * on it and send the result back - all money maths belongs on the server, where
+ * it stays in BigDecimal.
+ */
+export type WalletSummary = {
+  /**
+   * Spendable right now. This is ALREADY net of anything in escrow - money
+   * leaves the wallet the moment a purchase is made - so never subtract `held`
+   * from it, or you deduct the same amount twice.
+   */
+  available: number
+  /** Paid for, not yet released to the seller. */
+  held: number
+  /** available + held. */
+  total: number
+  currency: string
+  /**
+   * What a top-up will actually do in this environment, so the UI can say so
+   * up front instead of describing a payment screen the student may never see.
+   *
+   *   LIVE      - real PayFast, real money
+   *   SANDBOX   - PayFast's test environment: a real payment screen, no money
+   *   SIMULATED - local development: completed in-app, PayFast never contacted
+   */
+  topUpMode: 'LIVE' | 'SANDBOX' | 'SIMULATED'
+}
+
+export type WalletTransaction = {
+  walletTransactionId: number
+  walletId: number
+  type: WalletTransactionType
+  amount: number
+  balanceAfter: number
+  referenceType: string | null
+  referenceId: number | null
+  description: string | null
+  createdAt: string
+}
+
+export type Transaction = {
+  transactionId: number
+  buyerId: number
+  sellerId: number
+  listingId: number
+  amount: number
+  paymentMethod: PaymentMethod
+  status: TransactionStatus
+  createdAt: string
+  completedAt: string | null
+}
+
+/**
+ * The fields to POST to PayFast, in order.
+ *
+ * Render these as a hidden self-submitting form rather than building a URL: the
+ * signature covers the values, so anything altered in transit is rejected.
+ */
+export type PayFastRedirect = {
+  processUrl: string
+  fields: Record<string, string>
+  /** Our reference for this attempt, used to ask about it afterwards. */
+  merchantPaymentId: string
+  /**
+   * True only in local development with the ITN simulator switched on.
+   *
+   * PayFast confirms a payment by calling the backend from their own servers,
+   * which can never reach localhost - so on a laptop the redirect is a dead end.
+   * When this is true the UI completes the top-up itself instead of redirecting.
+   */
+  simulatorEnabled: boolean
+}
