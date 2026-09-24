@@ -7,7 +7,7 @@
 */
 
 import { authedRequest } from './client'
-import type { Campus, User } from './types'
+import type { Campus, Review, TrustedSellerBadge, User } from './types'
 
 export const usersApi = {
   byId: (userId: number | string) => authedRequest<User>(`/api/users/${userId}`),
@@ -16,13 +16,16 @@ export const usersApi = {
 
   campusById: (campusId: number) => authedRequest<Campus>(`/api/campuses/${campusId}`),
 
-  /* Reputation. Typed loosely for now - tighten these when you build the page.
-     GET /api/reviews/reviewee/:userId          -> reviews written about a user
-     GET /api/reviews/reviewee/:userId/average  -> a plain number
-     GET /api/trusted-seller-badges/user/:userId -> 404 when they have no badge */
   reviewsAbout: (userId: number | string) =>
-    authedRequest<unknown[]>(`/api/reviews/reviewee/${userId}`),
+    authedRequest<Review[]>(`/api/reviews/reviewee/${userId}`),
 
   averageRating: (userId: number | string) =>
     authedRequest<number>(`/api/reviews/reviewee/${userId}/average`),
+
+  /*
+    404 is the normal response when the user has no badge — catch it in the
+    component rather than treating it as an error.
+  */
+  trustedSellerBadge: (userId: number | string) =>
+    authedRequest<TrustedSellerBadge>(`/api/trusted-seller-badges/user/${userId}`),
 }

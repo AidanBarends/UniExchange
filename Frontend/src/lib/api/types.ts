@@ -161,6 +161,24 @@ export type BulletinPost = {
   removedAt: string | null
 }
 
+export type Review = {
+  reviewId: number
+  transactionId: number
+  reviewerId: number
+  revieweeId: number
+  /** 1–5 */
+  rating: number
+  comment: string | null
+  createdAt: string
+}
+ 
+export type TrustedSellerBadge = {
+  trustedSellerBadgeId: number
+  userId: number
+  earnedAt: string
+  /** null while the badge is still active */
+  revokedAt: string | null
+}
 export type BulletinPostImage = {
   imageId: number
   bulletinPostId: number
