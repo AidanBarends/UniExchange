@@ -16,6 +16,7 @@
 
 import { Navigate, Route, Routes } from 'react-router-dom'
 
+import { GuestRoute } from '@/auth/GuestRoute'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { useAuth } from '@/auth/useAuth'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -39,10 +40,14 @@ export default function App() {
     <Routes>
       <Route index element={<Navigate to={isAuthenticated ? '/feed' : '/login'} replace />} />
 
-      {/* Public - auth screens use AuthLayout, not AppLayout. */}
-      <Route path="/signup" element={<SignUpPage />} />
-      <Route path="/verify" element={<VerifyOtpPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      {/* Public - auth screens use AuthLayout, not AppLayout.
+          GuestRoute keeps a signed-in student out of them, so the browser back
+          button cannot land them on a login form they no longer need. */}
+      <Route element={<GuestRoute />}>
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/verify" element={<VerifyOtpPage />} />
+        <Route path="/login" element={<LoginPage />} />
+      </Route>
 
       {/* Signed in. Everything here gets the app shell automatically. */}
       <Route element={<ProtectedRoute />}>

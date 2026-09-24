@@ -11,6 +11,8 @@
 
 package za.ac.cput.factory.marketplace;
 
+import java.net.URI;
+
 import za.ac.cput.domain.marketplace.ListingImage;
 import za.ac.cput.util.Helper;
 
@@ -21,11 +23,22 @@ public class ListingImageFactory {
 
     public static ListingImage createListingImage(long listingId, String imageUrl, int position,
                                                   boolean isPrimary) {
+        return create(listingId, imageUrl, position, isPrimary, false);
+    }
+
+    public static ListingImage createUploadedListingImage(long listingId, String imageUrl, int position,
+                                                          boolean isPrimary) {
+        return create(listingId, imageUrl, position, isPrimary, true);
+    }
+
+    private static ListingImage create(long listingId, String imageUrl, int position,
+                                       boolean isPrimary, boolean uploadedFile) {
         if (!Helper.isValidId(listingId)) {
             throw new IllegalArgumentException("ListingImage: listingId must be a positive id");
         }
 
-        if (!Helper.isValidUrl(imageUrl)) {
+        if ((!uploadedFile && !Helper.isValidUrl(imageUrl))
+                || (uploadedFile && !isStoredImageUrl(imageUrl))) {
             throw new IllegalArgumentException("ListingImage: imageUrl must be a valid URL");
         }
 
@@ -39,6 +52,21 @@ public class ListingImageFactory {
                 .setPosition(position)
                 .setPrimary(isPrimary)
                 .build();
+    }
+
+    private static boolean isStoredImageUrl(String imageUrl) {
+        if (Helper.isNullOrEmpty(imageUrl)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(imageUrl.trim());
+            return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost() != null
+                    && uri.getPath() != null
+                    && uri.getPath().startsWith("/api/listing-images/files/");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public static ListingImage updateListingImage(ListingImage existing, long listingId, String imageUrl,

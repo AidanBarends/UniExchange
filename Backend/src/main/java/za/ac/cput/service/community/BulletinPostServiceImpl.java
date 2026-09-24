@@ -15,15 +15,23 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import za.ac.cput.domain.community.BulletinPost;
+import za.ac.cput.domain.community.BulletinPostImage;
+import za.ac.cput.domain.enums.BulletinPostCategory;
 import za.ac.cput.repository.community.BulletinPostRepository;
+import za.ac.cput.storage.LocalFileStorage;
 
 @Service
 public class BulletinPostServiceImpl implements IBulletinPostService {
 
     private final BulletinPostRepository repository;
+    private final IBulletinPostImageService imageService;
+    private final LocalFileStorage storage;
 
-    public BulletinPostServiceImpl(BulletinPostRepository repository) {
+    public BulletinPostServiceImpl(BulletinPostRepository repository, IBulletinPostImageService imageService,
+                                   LocalFileStorage storage) {
         this.repository = repository;
+        this.imageService = imageService;
+        this.storage = storage;
     }
 
     @Override
@@ -46,6 +54,12 @@ public class BulletinPostServiceImpl implements IBulletinPostService {
         if (id == null || !this.repository.existsById(id)) {
             return false;
         }
+
+        for (BulletinPostImage image : this.imageService.findByBulletinPostId(id)) {
+            this.imageService.delete(image.getImageId());
+            this.storage.deleteIfManaged(image.getImageUrl());
+        }
+
         this.repository.deleteById(id);
         return true;
     }
@@ -63,6 +77,11 @@ public class BulletinPostServiceImpl implements IBulletinPostService {
     @Override
     public List<BulletinPost> findAnnouncements() {
         return this.repository.findByIsFacultyAnnouncementTrue();
+    }
+
+    @Override
+    public List<BulletinPost> findByCategory(BulletinPostCategory category) {
+        return this.repository.findByCategory(category);
     }
 
 }

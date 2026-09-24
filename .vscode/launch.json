@@ -32,15 +32,41 @@
       "env": {
         "NO_COLOR": "1"
       },
+      // "openExternally" - just open the site in your normal browser.
+      //
+      // Anything that attaches VS Code's JavaScript debugger opens Chrome on a
+      // blank page FIRST and then navigates to the app, which leaves about:blank
+      // in the history as entry 0. The result is that the very first press of the
+      // browser back button lands on a blank page, right after signing in.
+      //
+      // Measured, opening http://localhost:5173:
+      //   debugger attaches (blank tab, then navigate) -> history.length 2, back
+      //     goes to about:blank
+      //   opened normally (this)                       -> history.length 1, back
+      //     is correctly disabled
+      //
+      // The cost is that you cannot set React breakpoints from inside VS Code.
+      // Chrome DevTools still works completely, and Java breakpoints in the
+      // backend are unaffected. If you do want React breakpoints, run the
+      // "Frontend: Chrome (debugger)" config below by hand and accept the extra
+      // history entry.
       "serverReadyAction": {
         "pattern": "(https?://localhost:[0-9]+)",
         "uriFormat": "%s",
-        "action": "debugWithChrome",
-        "webRoot": "${workspaceFolder}/Frontend"
+        "action": "openExternally"
       }
     },
     {
-      "name": "Frontend: attach Chrome to :5173",
+      // OPTIONAL, and not part of the F5 compound.
+      //
+      // Run this by hand only when you want React breakpoints inside VS Code. It
+      // attaches the debugger, so it reintroduces the about:blank history entry
+      // described above - that is the trade, and it is why the compound does not
+      // use it. Start the dev server first.
+      //
+      // The port is hard-coded; Vite is pinned with strictPort so it can never
+      // quietly move to 5174 and leave this pointing at nothing.
+      "name": "Frontend: Chrome (debugger)",
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:5173",

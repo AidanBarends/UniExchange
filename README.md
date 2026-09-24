@@ -291,8 +291,16 @@ are set up you do **not** need two terminals.
 3. Choose **"Full Stack: Backend + Frontend"** and press the green play button (or `F5`).
 
 That starts the API on :8080 and the Vite dev server on :5173, then opens Chrome
-attached to the debugger. Breakpoints work in Java, in the Vite process, and in
-your React `.tsx` files. Stopping one stops both.
+attached to the debugger. Breakpoints work in Java and in the Vite process, and
+the site opens in your normal browser. Stopping one stops both.
+
+React `.tsx` breakpoints inside VS Code are deliberately **not** wired into the
+F5 profile. Attaching VS Code's JavaScript debugger makes Chrome open a blank
+page first and then navigate to the app, which leaves `about:blank` in the
+browser history — so the first press of the back button after signing in lands
+on a blank page. Use Chrome DevTools, which is unaffected, or run
+`Frontend: Chrome (debugger)` by hand when you specifically want VS Code
+breakpoints in React.
 
 The individual profiles are also there if you only want one half:
 
@@ -300,8 +308,8 @@ The individual profiles are also there if you only want one half:
 |---|---|
 | `Full Stack: Backend + Frontend` | Both at once — the usual choice |
 | `Backend: Spring Boot` | API only, with Java breakpoints |
-| `Frontend: Vite dev server` | Dev server only, auto-attaches Chrome |
-| `Frontend: attach Chrome to :5173` | When the dev server is already running in a terminal |
+| `Frontend: Vite dev server` | Dev server only; opens the site in your browser |
+| `Frontend: Chrome (debugger)` | Optional. React breakpoints in VS Code, at the cost of the `about:blank` history entry. Start the dev server first |
 
 ### Tasks
 
