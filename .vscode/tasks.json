@@ -59,6 +59,35 @@
       "detail": "Package the backend jar"
     },
     {
+      // Public HTTPS URL for PayFast's callback (ITN) to reach localhost:8080.
+      // --metrics is pinned because the backend reads the tunnel's current
+      // hostname from http://127.0.0.1:20241/quicktunnel (see
+      // app.payfast.tunnel-discovery-url). Needs cloudflared installed - README,
+      // "Payments (PayFast)". The tunnel outlives the debug session, so a second F5
+      // would collide on port 20241: if one is already answering there it is reused
+      // (the echo matches endsPattern and the task exits 0). "Tasks: Terminate Task"
+      // stops it.
+      "label": "payfast: tunnel",
+      "type": "shell",
+      "command": "if curl -fsS --max-time 2 http://127.0.0.1:20241/quicktunnel; then echo; echo 'Tunnel already running - reusing it (Registered tunnel connection)'; else exec cloudflared tunnel --url http://localhost:8080 --metrics 127.0.0.1:20241; fi",
+      "windows": {
+        "command": "cloudflared tunnel --url http://localhost:8080 --metrics 127.0.0.1:20241"
+      },
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "reveal": "silent" },
+      "problemMatcher": {
+        "owner": "cloudflared",
+        "pattern": { "regexp": "^__never_matches__$" },
+        "background": {
+          "activeBegins": true,
+          "beginsPattern": "^__never_matches__$",
+          // Ready once the tunnel can actually carry traffic, not merely requested.
+          "endsPattern": "Registered tunnel connection"
+        }
+      },
+      "detail": "cloudflared quick tunnel so PayFast can confirm sandbox top-ups locally"
+    },
+    {
       "label": "full stack: verify",
       "dependsOrder": "sequence",
       "dependsOn": ["backend: test", "frontend: lint", "frontend: build"],

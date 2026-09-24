@@ -284,6 +284,13 @@ export type WalletSummary = {
   topUpMode: 'LIVE' | 'SANDBOX' | 'SIMULATED'
 }
 
+/** Result of a transfer. `balanceAfter` is the SENDER's new balance. */
+export type TransferResult = {
+  amount: number
+  recipientName: string
+  balanceAfter: number
+}
+
 export type WalletTransaction = {
   walletTransactionId: number
   walletId: number

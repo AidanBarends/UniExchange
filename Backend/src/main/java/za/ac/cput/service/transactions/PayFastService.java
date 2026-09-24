@@ -43,12 +43,16 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import za.ac.cput.domain.enums.PaymentStatus;
 import za.ac.cput.domain.identity.User;
@@ -57,6 +61,7 @@ import za.ac.cput.dto.transactions.WalletDtos;
 import za.ac.cput.factory.transactions.WalletTopUpFactory;
 import za.ac.cput.repository.identity.UserRepository;
 import za.ac.cput.repository.transactions.WalletTopUpRepository;
+import za.ac.cput.util.Helper;
 
 @Service
 public class PayFastService {
@@ -67,6 +72,13 @@ public class PayFastService {
     private static final BigDecimal AMOUNT_TOLERANCE = new BigDecimal("0.01");
 
     private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(15);
+
+    // A loopback call inside beginTopUp's transaction, so it must fail fast.
+    private static final Duration TUNNEL_DISCOVERY_TIMEOUT = Duration.ofSeconds(2);
+
+    // Hostname characters only, so nothing else from the reply can reach the signed URL.
+    private static final Pattern QUICK_TUNNEL_HOSTNAME =
+            Pattern.compile("\"hostname\"\\s*:\\s*\"([A-Za-z0-9.-]+)\"");
 
     /*
      PayFast publish no IP ranges, only hostnames, and they change. Both of their
@@ -83,6 +95,7 @@ public class PayFastService {
     private final UserRepository userRepository;
     private final IWalletService walletService;
     private final HttpClient httpClient;
+    private final TransactionTemplate transactionTemplate;
 
     private final boolean sandbox;
     private final String merchantId;
@@ -91,25 +104,29 @@ public class PayFastService {
     private final String returnUrl;
     private final String cancelUrl;
     private final String notifyUrl;
+    private final String tunnelDiscoveryUrl;
     private final boolean validateSourceIp;
     private final boolean simulatorEnabled;
 
     public PayFastService(WalletTopUpRepository topUpRepository,
                           UserRepository userRepository,
                           IWalletService walletService,
+                          PlatformTransactionManager transactionManager,
                           @Value("${app.payfast.sandbox:true}") boolean sandbox,
-                          @Value("${app.payfast.merchant-id:10000100}") String merchantId,
-                          @Value("${app.payfast.merchant-key:46f0cd694581a}") String merchantKey,
+                          @Value("${app.payfast.merchant-id:10054859}") String merchantId,
+                          @Value("${app.payfast.merchant-key:dku03dr7i156u}") String merchantKey,
                           @Value("${app.payfast.passphrase:}") String passphrase,
                           @Value("${app.payfast.return-url:http://localhost:5173/wallet?topup=done}") String returnUrl,
                           @Value("${app.payfast.cancel-url:http://localhost:5173/wallet?topup=cancelled}") String cancelUrl,
                           @Value("${app.payfast.notify-url:http://localhost:8080/api/payfast/itn}") String notifyUrl,
+                          @Value("${app.payfast.tunnel-discovery-url:}") String tunnelDiscoveryUrl,
                           @Value("${app.payfast.validate-source-ip:true}") boolean validateSourceIp,
                           @Value("${app.payfast.simulator.enabled:false}") boolean simulatorEnabled) {
         this.topUpRepository = topUpRepository;
         this.userRepository = userRepository;
         this.walletService = walletService;
         this.httpClient = HttpClient.newBuilder().connectTimeout(CONFIRM_TIMEOUT).build();
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.sandbox = sandbox;
         this.merchantId = merchantId;
         this.merchantKey = merchantKey;
@@ -117,6 +134,7 @@ public class PayFastService {
         this.returnUrl = returnUrl;
         this.cancelUrl = cancelUrl;
         this.notifyUrl = notifyUrl;
+        this.tunnelDiscoveryUrl = tunnelDiscoveryUrl;
         this.validateSourceIp = validateSourceIp;
         this.simulatorEnabled = simulatorEnabled;
     }
@@ -155,6 +173,9 @@ public class PayFastService {
      */
     @Transactional
     public LinkedHashMap<String, String> beginTopUp(long userId, BigDecimal amount) {
+        // First, so a missing tunnel fails before a PENDING row is written.
+        String notifyUrlForThisTopUp = currentNotifyUrl();
+
         User user = this.userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Top-up: no such user"));
 
@@ -175,7 +196,7 @@ public class PayFastService {
         fields.put("merchant_key", this.merchantKey);
         fields.put("return_url", this.returnUrl);
         fields.put("cancel_url", this.cancelUrl);
-        fields.put("notify_url", this.notifyUrl);
+        fields.put("notify_url", notifyUrlForThisTopUp);
         fields.put("name_first", user.getFirstName());
         fields.put("name_last", user.getLastName());
         fields.put("email_address", user.getEmail());
@@ -186,6 +207,48 @@ public class PayFastService {
 
         fields.put("signature", PayFastSignature.sign(fields, this.passphrase));
         return fields;
+    }
+
+    /*
+     Local development only. A cloudflared quick tunnel gets a new random
+     *.trycloudflare.com hostname every time it starts, and reports it at
+     http://127.0.0.1:<metrics>/quicktunnel. Asking on every top-up means a tunnel
+     restart needs no config edit and no backend restart. Unset in any deployed
+     environment, where notify-url is a fixed public address.
+    */
+    private String currentNotifyUrl() {
+        if (Helper.isNullOrEmpty(this.tunnelDiscoveryUrl)) {
+            return this.notifyUrl;
+        }
+        String discovered = null;
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(this.tunnelDiscoveryUrl))
+                    .timeout(TUNNEL_DISCOVERY_TIMEOUT)
+                    .GET()
+                    .build();
+            discovered = notifyUrlFromQuickTunnel(
+                    this.httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("Could not reach cloudflared at {}: {}", this.tunnelDiscoveryUrl, e.getMessage());
+        }
+        if (discovered == null) {
+            // Refuse rather than fall back: without the tunnel PayFast can never confirm
+            // the payment, so the student would pay and the wallet would never move.
+            throw new IllegalStateException("The PayFast tunnel isn't running, so this payment could "
+                    + "not be confirmed. Start \"Full Stack + PayFast tunnel\" in VS Code (or run "
+                    + "cloudflared) and try again.");
+        }
+        return discovered;
+    }
+
+    /** Builds the ITN URL from cloudflared's {"hostname":"x.trycloudflare.com"} reply, or null. */
+    static String notifyUrlFromQuickTunnel(String json) {
+        if (json == null) return null;
+        Matcher matcher = QUICK_TUNNEL_HOSTNAME.matcher(json);
+        return matcher.find() ? "https://" + matcher.group(1) + "/api/payfast/itn" : null;
     }
 
     /**
@@ -254,7 +317,11 @@ public class PayFastService {
             return;
         }
 
-        applyCompletedTopUp(merchantPaymentId, posted.get("pf_payment_id"));
+        // A self-call bypasses the @Transactional proxy, so the transaction is opened
+        // explicitly - without it the compare-and-set update throws.
+        String pfPaymentId = posted.get("pf_payment_id");
+        this.transactionTemplate.executeWithoutResult(status ->
+                applyCompletedTopUp(merchantPaymentId, pfPaymentId));
     }
 
     /**

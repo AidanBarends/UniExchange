@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SendMoneyForm } from '@/components/wallet/SendMoneyForm'
 import { TopUpForm } from '@/components/wallet/TopUpForm'
 import { formatZar } from '@/components/wallet/money'
 import { Alert } from '@/components/ui/Alert'
@@ -163,6 +164,8 @@ export function WalletPage() {
             </div>
 
             <TopUpForm mode={summary.topUpMode} onSimulated={() => void load()} />
+
+            <SendMoneyForm onSent={() => void load()} />
 
             <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-gray-200">
               <h2 className="border-b border-gray-200 px-5 py-4 text-base font-semibold text-ink-900">

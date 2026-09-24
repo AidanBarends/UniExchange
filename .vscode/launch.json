@@ -4,6 +4,9 @@
   // Pick "Full Stack: Backend + Frontend" in the Run and Debug dropdown (or press
   // F5 with it selected) to start both at once. Breakpoints work in Java, in the
   // Vite dev server, and in React once Chrome attaches.
+  //
+  // "Full Stack + PayFast tunnel" also starts cloudflared so PayFast sandbox
+  // top-ups can be confirmed. F5 remembers whichever one you picked last.
   "version": "0.2.0",
   "configurations": [
     {
@@ -61,6 +64,18 @@
       "presentation": {
         "group": "1-fullstack",
         "order": 1
+      }
+    },
+    {
+      // The same, plus a cloudflared tunnel so real PayFast sandbox top-ups can be
+      // confirmed. Separate so teammates without cloudflared keep a working F5.
+      "name": "Full Stack + PayFast tunnel",
+      "configurations": ["Backend: Spring Boot", "Frontend: Vite dev server"],
+      "preLaunchTask": "payfast: tunnel",
+      "stopAll": true,
+      "presentation": {
+        "group": "1-fullstack",
+        "order": 2
       }
     }
   ]

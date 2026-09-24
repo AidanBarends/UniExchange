@@ -15,6 +15,7 @@ Unlike Facebook Marketplace or Gumtree, UniExchange is closed to the public: onl
 - [Running in VS Code](#running-in-vs-code)
 - [Configuration Reference](#configuration-reference)
 - [Email / OTP Delivery](#email--otp-delivery)
+- [Payments (PayFast)](#payments-payfast)
 - [Backend](#backend)
 - [Frontend](#frontend)
 - [Testing](#testing)
@@ -322,6 +323,7 @@ The individual profiles are also there if you only want one half:
 | Profile | Purpose |
 |---|---|
 | `Full Stack: Backend + Frontend` | Both at once — the usual choice |
+| `Full Stack + PayFast tunnel` | The same, plus a cloudflared tunnel so PayFast sandbox top-ups actually complete. Needs cloudflared — see [Payments (PayFast)](#payments-payfast) |
 | `Backend: Spring Boot` | API only, with Java breakpoints |
 | `Frontend: Vite dev server` | Dev server only; opens the site in your browser |
 | `Frontend: Chrome (debugger)` | Optional. React breakpoints in VS Code, at the cost of the `about:blank` history entry. Start the dev server first |
@@ -335,6 +337,7 @@ The individual profiles are also there if you only want one half:
 | `frontend: install` | `npm install` — run once after cloning |
 | `frontend: dev server` / `build` / `lint` | The npm scripts |
 | `backend: test` / `backend: build` | Maven, via the wrapper |
+| `payfast: tunnel` | cloudflared quick tunnel to `localhost:8080`, started automatically by the PayFast F5 profile |
 | **`full stack: verify`** | Backend tests → frontend lint → frontend build. **Run this before opening a PR.** |
 
 > The Vite profile sets `NO_COLOR=1`. Vite otherwise embeds ANSI colour codes
@@ -353,7 +356,7 @@ The individual profiles are also there if you only want one half:
 | File | When | Committed? |
 |---|---|---|
 | `Frontend/.env.local` | Backend on a non-default port | No (gitignored) |
-| `Backend/src/main/resources/application-local.properties` | **Your DB password and SMTP credentials** — everything personal or secret | No (gitignored) |
+| `Backend/src/main/resources/application-local.properties` | **Your DB password, SMTP credentials and PayFast tunnel settings** — everything personal or secret | No (gitignored) |
 | `Backend/src/main/resources/application.properties` | Changing a setting **for the whole team** | **Yes — never put secrets here** |
 | `Backend/src/test/resources/application.properties` | Test-only config (H2) | Yes |
 
@@ -435,6 +438,210 @@ registration returns a clean `503` rather than failing silently.
 Mail from Gmail into a university Microsoft tenant often lands in **Junk** — check there before assuming it failed.
 
 > **Why an emailed code rather than "Sign in with Microsoft"?** Because the OTP is what actually proves the account is real: if `240453182@mycput.ac.za` isn't a genuine mailbox, the code never arrives, so the account can never be activated. Entra ID SSO would be a good addition later, but it needs an Azure app registration and CPUT's tenant admin can disable third-party consent at any time — so it can only ever be an extra door, not the only one. Note also that `mycput.ac.za` (students) and `cput.ac.za` (staff) are two separate Entra tenants.
+
+## Payments (PayFast)
+
+Students add money to their wallet through [PayFast](https://payfast.io). Out of
+the box this runs against **PayFast's sandbox**: a real payment screen, but no real
+money moves.
+
+### How a top-up works
+
+1. The student enters an amount on `/wallet` and clicks **Continue to PayFast**.
+2. `POST /api/wallet/topup` records a `PENDING` row in `wallet_top_up` and returns
+   a set of form fields, signed with an MD5 signature.
+3. The browser posts those fields to `https://sandbox.payfast.co.za/eng/process`,
+   and the student pays on PayFast's page.
+4. PayFast's **servers** call our `notify_url` (`POST /api/payfast/itn`). This is
+   the **ITN** (Instant Transaction Notification). It is the only thing that
+   credits a wallet.
+5. The backend checks the ITN: the signature, the source address, that the amount
+   and merchant match, that the status is `COMPLETE`, and finally asks PayFast
+   directly whether it really sent it. Only then does it mark the top-up
+   `COMPLETED` and credit the wallet.
+6. PayFast sends the student back to `/wallet?topup=done`, which polls until the
+   new balance appears.
+
+The student arriving back at `return_url` proves nothing, because anyone can
+open that link. Money moves only on a validated ITN.
+
+**Where the code lives** (`Backend/src/main/java/za/ac/cput/`)
+
+| File | Job |
+|---|---|
+| `service/transactions/PayFastService.java` | Builds the signed form, validates the ITN, credits the wallet |
+| `service/transactions/PayFastSignature.java` | The MD5 signature, PHP-compatible |
+| `controller/transactions/MyWalletController.java` | `POST /api/wallet/topup` |
+| `controller/transactions/PayFastController.java` | `POST /api/payfast/itn`, open to everyone (`permitAll`) because PayFast sends no JWT |
+| `controller/transactions/PayFastSimulatorController.java` | Dev-only stand-in for PayFast, off by default |
+| `Frontend/src/components/wallet/TopUpForm.tsx` | Builds and submits the form that goes to PayFast |
+
+### Running the sandbox on your machine
+
+The catch: in step 4, PayFast has to reach your backend **from the internet**, and
+`localhost` isn't reachable from there. A free Cloudflare quick tunnel gives your
+`localhost:8080` a public HTTPS address. No Cloudflare account is needed.
+
+**1. Sandbox credentials.** The team's sandbox merchant is already in
+`application.properties` (`10054859` / `dku03dr7i156u`, no passphrase), so you
+don't need your own. If you want one, register at
+[sandbox.payfast.co.za](https://sandbox.payfast.co.za) and put your merchant ID
+and key in your `application-local.properties`:
+
+```properties
+app.payfast.merchant-id=<your sandbox merchant id>
+app.payfast.merchant-key=<your sandbox merchant key>
+# Only if you set a passphrase on the sandbox dashboard. It must match exactly.
+app.payfast.passphrase=<your passphrase>
+```
+
+> PayFast's old shared demo merchant (`10000100` / `46f0cd694581a`), which older
+> tutorials still quote, **no longer works**. Every payment fails with
+> *"Generated signature does not match submitted signature"*.
+
+**2. Install cloudflared** (once):
+
+```bash
+brew install cloudflared                       # macOS
+winget install --id Cloudflare.cloudflared     # Windows
+```
+
+**3. Tell the backend about the tunnel** (once). Add these two lines to
+`Backend/src/main/resources/application-local.properties`:
+
+```properties
+app.payfast.tunnel-discovery-url=http://127.0.0.1:20241/quicktunnel
+app.payfast.validate-source-ip=false
+```
+
+- The first line lets the backend find the tunnel's public URL by itself (see
+  the next section).
+- The second is needed because, through a tunnel, the ITN arrives from
+  cloudflared rather than from PayFast's own address, so the source check would
+  always fail. The signature check and the confirmation call to PayFast still run.
+- **Never** put either line in `application.properties`.
+
+**4. Start everything.** In VS Code, open Run and Debug, choose **"Full Stack +
+PayFast tunnel"**, and press F5. This starts the tunnel (the `payfast: tunnel`
+task), then the backend and frontend. F5 remembers the profile you picked.
+
+**5. Make a test top-up.**
+1. Open `/wallet` and click **Continue to PayFast**.
+2. You land on PayFast's sandbox checkout page. Finish the payment there; it's a
+   test environment, so nothing is charged.
+3. PayFast sends you back to your wallet.
+
+**6. Check it worked.**
+- The balance on `/wallet` updates within a few seconds.
+- The backend Debug Console shows `PayFast ITN received …` followed by
+  `Credited 100.00 to user …`.
+- In MySQL, the top-up is `COMPLETED`:
+  ```sql
+  SELECT top_up_id, amount, status, created_at, completed_at
+  FROM wallet_top_up ORDER BY top_up_id DESC LIMIT 5;
+  ```
+- The sandbox dashboard's **"All received ITNs"** list shows the delivery. There,
+  "Success" only means our endpoint replied `200`, and it always does, even when it
+  rejects an ITN. The database and the log are the real proof.
+
+### Does the tunnel URL change?
+
+**Yes, every time cloudflared starts** you get a new random
+`https://<words>.trycloudflare.com`. You never copy it anywhere, though.
+cloudflared reports its current address on a local status server
+(`http://127.0.0.1:20241/quicktunnel`), and when `app.payfast.tunnel-discovery-url`
+is set, `PayFastService` asks it on **every** top-up. A new URL is picked up on the
+next top-up, with no config edit and no backend restart.
+
+Things to know:
+
+- A top-up started **before** the tunnel restarted is signed with the old URL, so
+  its ITN never arrives and it stays `PENDING`. Start a new one.
+- The tunnel keeps running after you stop debugging. The next F5 **reuses** it
+  instead of starting a second one, so the URL stays the same between sessions.
+  Use **"Tasks: Terminate Task" → payfast: tunnel** to stop it.
+- Only one cloudflared can use port `20241`. A tunnel you started by hand with
+  the same `--metrics 127.0.0.1:20241` flag is reused too. One started without
+  that flag is not, so stop it.
+- If the backend can't reach cloudflared, **it refuses to start the top-up**, and
+  the wallet page shows *"The PayFast tunnel isn't running …"*. Without the tunnel
+  PayFast could never confirm the payment, so you'd pay and the wallet would never
+  move.
+- Quick tunnels are for testing only. They have no uptime guarantee.
+
+### No tunnel? Use the simulator
+
+Set `app.payfast.simulator.enabled=true` in `application-local.properties` and
+restart. The wallet page then completes top-ups itself, without contacting
+PayFast, through `POST /api/dev/payfast/complete/{m_payment_id}`. That runs the
+same crediting code a real ITN does.
+
+It's for offline demos. It only lets a student complete **their own** pending
+top-up, and `@Profile("!prod")` stops it from ever loading in production.
+
+### Going live (real money)
+
+**No code changes are needed.** Going live is settings only. Set these as
+**Application settings** in Azure App Service (environment variables), never in a
+committed file:
+
+| Property | Sandbox (now) | Live | Azure env var |
+|---|---|---|---|
+| `app.payfast.sandbox` | `true` | `false` (switches to `www.payfast.co.za`) | `APP_PAYFAST_SANDBOX` |
+| `app.payfast.merchant-id` | `10054859` | From your **live** PayFast dashboard | `APP_PAYFAST_MERCHANTID` |
+| `app.payfast.merchant-key` | `dku03dr7i156u` | From your live dashboard | `APP_PAYFAST_MERCHANTKEY` |
+| `app.payfast.passphrase` | empty | **Set one** on the live dashboard and copy it exactly | `APP_PAYFAST_PASSPHRASE` |
+| `app.payfast.notify-url` | `localhost` | `https://<backend>.azurewebsites.net/api/payfast/itn` | `APP_PAYFAST_NOTIFYURL` |
+| `app.payfast.return-url` | `localhost:5173/...` | `https://<frontend>/wallet?topup=done` | `APP_PAYFAST_RETURNURL` |
+| `app.payfast.cancel-url` | `localhost:5173/...` | `https://<frontend>/wallet?topup=cancelled` | `APP_PAYFAST_CANCELURL` |
+| `app.payfast.validate-source-ip` | `false` (tunnel) | **`true`** | `APP_PAYFAST_VALIDATESOURCEIP` |
+| `app.payfast.tunnel-discovery-url` | set (tunnel) | **unset** | leave out |
+| `app.payfast.simulator.enabled` | `false` | **`false`** | leave out |
+
+The env var names follow Spring's rule: dots become `_`, dashes are dropped, and
+everything is uppercase. Also add the live frontend's address to
+`app.cors.allowed-origins`.
+
+**Steps**
+
+1. Open and activate a **live** PayFast merchant account. Sandbox credentials
+   don't work on the live site, and live ones don't work on sandbox.
+2. Set a passphrase on the live dashboard. It's optional for once-off payments,
+   but it stops anyone who has seen a form from forging one.
+3. Deploy with the table's **sandbox** values, except `notify-url`, which points
+   at the deployed backend. Do a sandbox top-up against the real server. This
+   proves PayFast can reach your ITN endpoint over HTTPS without a tunnel.
+4. Switch to the live values and do one small real top-up, say R5. Check the log
+   and `wallet_top_up` exactly as in step 6 above.
+5. Keep an eye on `PayFast ITN …` warnings in the logs for the first few days.
+
+> Behind Azure's proxy, `server.forward-headers-strategy=framework` means the
+> source-IP check reads `X-Forwarded-For`. That's defence in depth only. The
+> checks that actually authenticate an ITN are the signature and the
+> confirmation call back to PayFast, so never remove either.
+
+### Troubleshooting PayFast
+
+| Symptom | Cause and fix |
+|---|---|
+| PayFast shows *"Generated signature does not match submitted signature"* | Wrong merchant ID/key or passphrase, most often the retired `10000100` demo merchant, or a passphrase set on the dashboard but not in `app.payfast.passphrase` (or the other way round). |
+| "Continue to PayFast" spins and nothing happens | The request to PayFast was never sent. Check the browser console. `TopUpForm` builds the form outside React for exactly this reason; don't move it back into JSX. |
+| Paid, but the balance stays R0 and the top-up stays `PENDING` | The ITN didn't arrive or was rejected. No `PayFast ITN received` in the log means PayFast couldn't reach you: is the tunnel running, and was the top-up started after it? A `PayFast ITN …` warning names the check that failed. |
+| Wallet page says *"The PayFast tunnel isn't running …"* | cloudflared isn't running, or isn't on port 20241. Start **"Full Stack + PayFast tunnel"**, or run `cloudflared tunnel --url http://localhost:8080 --metrics 127.0.0.1:20241` in a terminal. Check the **payfast: tunnel** tab in the Terminal panel for its output. |
+| `404` on a new wallet endpoint | The backend is still the old build. Restart it. |
+
+**Things in this code that are easy to break**
+
+- **Signatures follow PHP's `urlencode`**, not Java's `URLEncoder`. They differ on
+  `*`, so always use `PayFastSignature.phpUrlEncode`.
+- **Empty fields:** the outgoing form **skips** them, but the ITN check
+  **includes** them. PayFast's ITN is full of empty fields (`custom_str1=`, …).
+  Mixing the two rules rejects every real payment without an error.
+- **`@Transactional` on a method called through `this` does nothing.**
+  `handleNotification` therefore opens its transaction with a
+  `TransactionTemplate`. Without it, crediting fails with "no transaction".
+- **Field order is part of the signature.** Keep the fields in a `LinkedHashMap`
+  and don't reorder `beginTopUp`.
 
 ## Backend
 
@@ -585,6 +792,7 @@ Because of that, `available` is already net of anything held. Show
 |---|---|
 | `GET /api/wallet` · `GET /api/wallet/ledger` | Balance (+ escrow) and the full audit trail |
 | `POST /api/wallet/topup` | Returns the signed PayFast form fields to POST |
+| `POST /api/wallet/transfer` | Send money straight to another student, by student email |
 | `POST /api/payfast/itn` | PayFast's callback. **`permitAll`** — it carries no JWT |
 | `POST /api/purchases` | Buy a listing; money is held |
 | `POST /api/purchases/{id}/confirm` | Buyer confirms receipt — this is what pays the seller |
@@ -605,27 +813,20 @@ Two things in the money path are load-bearing and easy to undo by accident:
   the authority. This is what stops two "I received it" clicks paying a seller
   twice, and two buyers claiming the same listing.
 
-PayFast is in sandbox mode by default, with their published test merchant
-(`10000100` / `46f0cd694581a`) — public test values, not secrets. One trap worth
-repeating: the signature is an MD5 over PHP-`urlencode`d values, and Java's
-`URLEncoder` leaves `*` literal where PHP writes `%2A`, so
-`PayFastSignature.phpUrlEncode` exists and must be used.
+Top-ups go through PayFast. Sandbox setup, the local tunnel, going live and
+troubleshooting are all in [Payments (PayFast)](#payments-payfast).
 
-**Demonstrating the wallet locally.** PayFast confirms a payment by calling
-`notify_url` from their servers, and that can never reach `localhost` — so on a
-laptop a top-up starts and the money never arrives. Two ways round it:
+**Sending money to another student** (`POST /api/wallet/transfer`,
+`{ recipientEmail, amount }`) is handled by `TransferServiceImpl`:
 
-- run a tunnel (`ngrok http 8080`), put the public URL in
-  `app.payfast.notify-url`, and set `app.payfast.validate-source-ip=false`
-  (the peer address is then the tunnel's, not PayFast's); or
-- set `app.payfast.simulator.enabled=true` and complete the top-up yourself with
-  `POST /api/dev/payfast/complete/{m_payment_id}`, which runs the same crediting
-  path the real callback does.
-
-That simulator credits wallets, so it is gated three ways — the property, which
-defaults to false; `@Profile("!prod")`; and `ADMIN` in `SecurityConfig`. Do not
-enable it anywhere it can be reached. Once deployed to Azure the real callback
-works, because the URL is then public.
+- The sender is always the token holder, never a value from the request body.
+- The debit and the credit happen in one transaction, in ascending-userId lock
+  order, so two students sending to each other at once can't deadlock.
+- If the sender can't cover it, nothing moves.
+- Rejections come back as `409` with a `code`: `INSUFFICIENT_FUNDS`,
+  `RECIPIENT_NOT_FOUND`, `RECIPIENT_UNAVAILABLE` or `CANNOT_SEND_TO_SELF`.
+- Both people's Activity lists get a row: `Sent to …` / `Received from …`, with
+  `reference_type = TRANSFER`.
 
 #### Reviews and the Trusted Seller badge
 

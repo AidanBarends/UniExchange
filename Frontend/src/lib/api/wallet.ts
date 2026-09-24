@@ -12,7 +12,13 @@
 */
 
 import { authedRequest } from './client'
-import type { PayFastRedirect, Transaction, WalletSummary, WalletTransaction } from './types'
+import type {
+  PayFastRedirect,
+  Transaction,
+  TransferResult,
+  WalletSummary,
+  WalletTransaction,
+} from './types'
 
 export const walletApi = {
   summary: () => authedRequest<WalletSummary>('/api/wallet'),
@@ -43,6 +49,17 @@ export const walletApi = {
    * app.payfast.simulator.enabled is true, and never outside development. Call it
    * only when startTopUp reported simulatorEnabled.
    */
+  /**
+   * Sends money straight to another student's wallet. The amount goes as a
+   * string for the same reason as startTopUp. Errors carry a `code`:
+   * INSUFFICIENT_FUNDS, RECIPIENT_NOT_FOUND, RECIPIENT_UNAVAILABLE, CANNOT_SEND_TO_SELF.
+   */
+  sendMoney: (recipientEmail: string, amount: string) =>
+    authedRequest<TransferResult>('/api/wallet/transfer', {
+      method: 'POST',
+      body: { recipientEmail, amount },
+    }),
+
   simulateTopUpCompletion: (merchantPaymentId: string) =>
     authedRequest<{ status: string }>(`/api/dev/payfast/complete/${merchantPaymentId}`, {
       method: 'POST',

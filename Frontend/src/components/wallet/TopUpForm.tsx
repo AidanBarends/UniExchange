@@ -13,7 +13,7 @@
   Author: Mogamat Yaseen Kannemeyer 240453182
 */
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
@@ -36,9 +36,6 @@ export function TopUpForm({ mode, onSimulated }: TopUpFormProps) {
   const [amount, setAmount] = useState('100.00')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const formRef = useRef<HTMLFormElement | null>(null)
-  const [redirect, setRedirect] = useState<PayFastRedirect | null>(null)
 
   async function startTopUp(event: React.FormEvent) {
     event.preventDefault()
@@ -69,9 +66,9 @@ export function TopUpForm({ mode, onSimulated }: TopUpFormProps) {
         return
       }
 
-      setRedirect(response)
-      // Wait a tick so React has rendered the hidden form before submitting it.
-      window.setTimeout(() => formRef.current?.submit(), 0)
+      // Built outside React: a ref-based form rendered after setState is not
+      // guaranteed to be committed by the next tick, and a null ref no-ops silently.
+      submitToPayFast(response)
     } catch (err: unknown) {
       setError(err instanceof ApiError ? err.message : 'Could not start the top-up.')
       setSubmitting(false)
@@ -151,19 +148,25 @@ export function TopUpForm({ mode, onSimulated }: TopUpFormProps) {
           {mode === 'SIMULATED' ? 'Add funds' : 'Continue to PayFast'}
         </Button>
       </form>
-
-      {/*
-        Rendered only after the backend replies, and submitted immediately. The
-        field order matters to the signature, which is why it is preserved from
-        the server response rather than rebuilt.
-      */}
-      {redirect && (
-        <form ref={formRef} action={redirect.processUrl} method="POST" className="hidden">
-          {Object.entries(redirect.fields).map(([name, value]) => (
-            <input key={name} type="hidden" name={name} value={value} readOnly />
-          ))}
-        </form>
-      )}
     </div>
   )
+}
+
+// Field order matters to the signature, so inputs are appended in server order.
+function submitToPayFast(redirect: PayFastRedirect) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = redirect.processUrl
+  form.style.display = 'none'
+
+  for (const [name, value] of Object.entries(redirect.fields)) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  }
+
+  document.body.appendChild(form)
+  form.submit()
 }

@@ -30,10 +30,13 @@ import za.ac.cput.domain.transactions.Wallet;
 import za.ac.cput.domain.transactions.WalletTransaction;
 import za.ac.cput.dto.transactions.WalletDtos.PayFastRedirect;
 import za.ac.cput.dto.transactions.WalletDtos.TopUpRequest;
+import za.ac.cput.dto.transactions.WalletDtos.TransferRequest;
+import za.ac.cput.dto.transactions.WalletDtos.TransferResult;
 import za.ac.cput.dto.transactions.WalletDtos.WalletSummary;
 import za.ac.cput.repository.transactions.WalletTransactionRepository;
 import za.ac.cput.security.UniExchangeUserDetailsService.AuthenticatedUser;
 import za.ac.cput.service.transactions.IEscrowService;
+import za.ac.cput.service.transactions.ITransferService;
 import za.ac.cput.service.transactions.IWalletService;
 import za.ac.cput.service.transactions.PayFastService;
 
@@ -45,15 +48,18 @@ public class MyWalletController {
     private final IEscrowService escrowService;
     private final PayFastService payFastService;
     private final WalletTransactionRepository ledgerRepository;
+    private final ITransferService transferService;
 
     public MyWalletController(IWalletService walletService,
                               IEscrowService escrowService,
                               PayFastService payFastService,
-                              WalletTransactionRepository ledgerRepository) {
+                              WalletTransactionRepository ledgerRepository,
+                              ITransferService transferService) {
         this.walletService = walletService;
         this.escrowService = escrowService;
         this.payFastService = payFastService;
         this.ledgerRepository = ledgerRepository;
+        this.transferService = transferService;
     }
 
     @GetMapping
@@ -94,6 +100,13 @@ public class MyWalletController {
                 fields,
                 fields.get("m_payment_id"),
                 this.payFastService.isSimulatorEnabled()));
+    }
+
+    /** Sends money to another student. The sender is whoever holds the token, never the body. */
+    @PostMapping("/transfer")
+    public TransferResult transfer(@RequestBody TransferRequest request,
+                                   @AuthenticationPrincipal AuthenticatedUser principal) {
+        return this.transferService.send(me(principal), request.recipientEmail(), request.amount());
     }
 
     /*

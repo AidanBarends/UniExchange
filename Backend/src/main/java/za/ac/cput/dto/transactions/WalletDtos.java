@@ -73,4 +73,10 @@ public final class WalletDtos {
     /** Body of POST /api/purchases. expectedAmount is what the buyer was shown. */
     public record PurchaseRequest(long listingId, BigDecimal expectedAmount) {}
 
+    /** Body of POST /api/wallet/transfer. The sender is always the token holder. */
+    public record TransferRequest(String recipientEmail, BigDecimal amount) {}
+
+    /** balanceAfter is the SENDER's new balance; nothing about the recipient's wallet is revealed. */
+    public record TransferResult(BigDecimal amount, String recipientName, BigDecimal balanceAfter) {}
+
 }
